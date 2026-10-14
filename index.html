@@ -73,9 +73,12 @@
           </div>
         </div>
       </div>
-      <button onclick="manualSync()" class="px-3 py-1.5 rounded-full bg-[#332420] text-[#FF8A5B] text-xs font-bold flex items-center gap-1.5 active:scale-95 transition">
+      <div class="flex items-center gap-2">
+        <button onclick="manualSync()" class="px-3 py-1.5 rounded-full bg-[#332420] text-[#FF8A5B] text-xs font-bold flex items-center gap-1.5 active:scale-95 transition">
         <span>🔄</span> <span id="sync-code-badge">JS27</span>
       </button>
+        <button onclick="switchTab('couple')" aria-label="Einstellungen" class="w-9 h-9 rounded-full bg-[#332420] text-base flex items-center justify-center active:scale-95 transition">⚙️</button>
+      </div>
     </header>
 
     <main id="main-content" class="flex-1 px-5 pt-4 pb-6 overflow-y-auto"></main>
@@ -100,9 +103,9 @@
         </div>
         <span class="text-[11px] font-bold">Einkauf</span>
       </button>
-      <button onclick="switchTab('couple')" id="nav-couple" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
-        <div class="nav-pill px-4 py-1 rounded-full text-base transition">💑</div>
-        <span class="text-[11px] font-bold">Paar & Sync</span>
+      <button onclick="switchTab('plan')" id="nav-plan" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
+        <div class="nav-pill px-4 py-1 rounded-full text-base transition">📅</div>
+        <span class="text-[11px] font-bold">Wochenplan</span>
       </button>
     </nav>
   </div>
@@ -395,6 +398,7 @@
       if (Array.isArray(p.meals)) out.meals = p.meals.map(cleanMeal).filter(m => m.id && m.name);
       if (Array.isArray(p.shopping)) out.shopping = p.shopping.map(cleanItem).filter(i => i.id && i.text);
       if (Array.isArray(p.history)) out.history = p.history.map(cleanHist).filter(h => h.id).slice(0, 15);
+      if (Array.isArray(p.plan)) out.plan = p.plan.map(x => ({ id: sid(x && x.id), mealId: sid(x && x.mealId), ts: +(x && x.ts) || 0 })).filter(x => /^d[0-6]$/.test(x.id));
       if (p.deleted && typeof p.deleted === 'object') {
         out.deleted = {};
         for (const k in p.deleted) { const id = sid(k); if (id) out.deleted[id] = +p.deleted[k] || 0; }
@@ -407,12 +411,12 @@
     let snap = {};
     function rebuildSnap() {
       snap = {};
-      [...state.meals, ...state.shopping].forEach(it => { const { ts, ...r } = it; snap[it.id] = JSON.stringify(r); });
+      [...state.meals, ...state.shopping, ...(state.plan || [])].forEach(it => { const { ts, ...r } = it; snap[it.id] = JSON.stringify(r); });
     }
     function stamp() {
       const now = Date.now(), cur = {};
       state.deleted = state.deleted || {};
-      [...state.meals, ...state.shopping].forEach(it => {
+      [...state.meals, ...state.shopping, ...(state.plan || [])].forEach(it => {
         const { ts, ...r } = it, j = JSON.stringify(r);
         cur[it.id] = 1;
         if (snap[it.id] !== j) { it.ts = now; snap[it.id] = j; }
@@ -423,7 +427,7 @@
     // Eingehenden Stand mit dem lokalen zusammenführen (pro Eintrag gewinnt der neuere)
     function applyIncoming(inc) {
       const c = cleanLists(inc);
-      const snapshot = () => JSON.stringify([state.meals, state.shopping, state.history, state.deleted]);
+      const snapshot = () => JSON.stringify([state.meals, state.shopping, state.history, state.deleted, state.plan]);
       const before = snapshot();
       const del = { ...(state.deleted || {}) };
       for (const k in (c.deleted || {})) del[k] = Math.max(del[k] || 0, c.deleted[k]);
@@ -441,6 +445,7 @@
       [...(state.history || []), ...(c.history || [])].filter(h => !del[h.id]).forEach(h => hist.set(h.id, h));
       state.meals = mergeList(state.meals, c.meals);
       state.shopping = mergeList(state.shopping, c.shopping);
+      state.plan = mergeList(state.plan, c.plan); ensurePlan(state);
       state.history = [...hist.values()].sort((a, b) => (parseInt(b.id.slice(2), 10) || 0) - (parseInt(a.id.slice(2), 10) || 0)).slice(0, 15);
       state.deleted = del;
       if (snapshot() === before) return false;
@@ -450,7 +455,7 @@
 
     // ntfy erlaubt ~4 KB pro Nachricht -> gzip + base64, nur geteilte Daten (keine Namen/Code)
     async function packState() {
-      const json = JSON.stringify({ meals: state.meals, shopping: state.shopping, history: state.history, deleted: state.deleted, updatedAt: state.updatedAt });
+      const json = JSON.stringify({ meals: state.meals, shopping: state.shopping, history: state.history, plan: state.plan, deleted: state.deleted, updatedAt: state.updatedAt });
       if (!('CompressionStream' in window)) return json;
       const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
       let bin = '';
@@ -508,6 +513,90 @@
         </div>`;
     }
 
+    // ---------- Wochenplan ----------
+    const DAY_SHORT = ['Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa', 'So'];
+    function ensurePlan(st) {
+      const have = new Map((st.plan || []).map(x => [x.id, x]));
+      st.plan = DAY_SHORT.map((_, i) => have.get('d' + i) || { id: 'd' + i, mealId: '', ts: 0 });
+    }
+    function planMeal(i) { return state.meals.find(m => m.id === state.plan[i].mealId); }
+    function setPlanMeal(i, mealId) { state.plan[i].mealId = sid(mealId); pushCloudState(); render(); }
+    function shuffled(a) {
+      const r = [...a];
+      for (let i = r.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [r[i], r[j]] = [r[j], r[i]]; }
+      return r;
+    }
+    function rollPlanDay(i) {
+      const used = new Set(state.plan.filter((_, j) => j !== i).map(p => p.mealId));
+      let pool = state.meals.filter(m => m.active && !used.has(m.id));
+      if (!pool.length) pool = state.meals.filter(m => m.active);
+      if (!pool.length) { showToast('Keine aktiven Gerichte vorhanden'); return; }
+      setPlanMeal(i, pool[Math.floor(Math.random() * pool.length)].id);
+    }
+    function rollPlanWeek() {
+      const empty = state.plan.map((_, i) => i).filter(i => !planMeal(i));
+      const active = state.meals.filter(m => m.active);
+      if (!empty.length) { showToast('Alle Tage sind schon belegt'); return; }
+      if (!active.length) { showToast('Keine aktiven Gerichte vorhanden'); return; }
+      let pool = shuffled(active.filter(m => !state.plan.some(p => p.mealId === m.id)));
+      empty.forEach(i => { if (!pool.length) pool = shuffled(active); state.plan[i].mealId = pool.pop().id; });
+      pushCloudState(); render();
+    }
+    function clearPlan() {
+      if (!confirm('Wochenplan leeren?')) return;
+      state.plan.forEach(p => { p.mealId = ''; });
+      pushCloudState(); render();
+    }
+    function addPlanToCart() {
+      const ids = [...new Set(state.plan.map(p => p.mealId).filter(Boolean))];
+      let added = 0, used = 0;
+      ids.forEach(id => {
+        const meal = state.meals.find(m => m.id === id);
+        if (!meal) return;
+        used++;
+        (meal.ingredients || []).forEach(ing => {
+          const clean = ing.trim();
+          if (!clean || state.shopping.some(it => it.text.toLowerCase() === clean.toLowerCase() && !it.done)) return;
+          state.shopping.unshift({ id: 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6), text: clean, fromMeal: meal.name, done: false, addedBy: me() });
+          added++;
+        });
+      });
+      if (!used) { showToast('Noch keine Gerichte im Plan'); return; }
+      pushCloudState();
+      showToast(`🛒 ${added} Zutat(en) von ${used} Gericht(en) hinzugefügt`);
+      render();
+    }
+    function planHtml() {
+      const today = (new Date().getDay() + 6) % 7;
+      const planned = state.plan.filter((_, i) => planMeal(i)).length;
+      return `
+        <div class="space-y-4">
+          <div>
+            <h2 class="text-lg font-extrabold text-white">Wochenplan</h2>
+            <p class="text-xs text-[#C7B2AA]">${planned} von 7 Tagen geplant · gemeinsam für ${esc(state.partner1)} & ${esc(state.partner2)}</p>
+          </div>
+          <div class="grid grid-cols-2 gap-2">
+            <button onclick="rollPlanWeek()" class="py-3 rounded-2xl bg-[#F26419] text-white font-extrabold text-xs shadow-md active:scale-95 transition">🎲 Leere Tage auslosen</button>
+            <button onclick="addPlanToCart()" class="py-3 rounded-2xl bg-[#261B18] border border-[#3E2C27] text-[#FF8A5B] font-extrabold text-xs active:scale-95 transition">🛒 Zutaten → Einkauf</button>
+          </div>
+          <div class="space-y-2">
+            ${state.plan.map((p, i) => `
+              <div class="bg-[#261B18] rounded-2xl p-3 border ${i === today ? 'border-[#F26419]' : 'border-[#3E2C27]'} flex items-center gap-2">
+                <div class="w-12 shrink-0">
+                  <p class="text-sm font-extrabold ${i === today ? 'text-[#FF8A5B]' : 'text-white'}">${DAY_SHORT[i]}</p>
+                  ${i === today ? '<p class="text-[10px] font-bold text-[#FF8A5B]">heute</p>' : ''}
+                </div>
+                <select onchange="setPlanMeal(${i}, this.value)" class="flex-1 min-w-0 px-3 py-2.5 rounded-xl bg-[#1A1210] border border-[#3E2C27] text-sm font-semibold text-white">
+                  <option value="">– noch nichts –</option>
+                  ${state.meals.filter(x => x.active || x.id === p.mealId).map(x => `<option value="${x.id}" ${x.id === p.mealId ? 'selected' : ''}>${esc(x.emoji || '🍽️')} ${esc(x.name)}</option>`).join('')}
+                </select>
+                <button onclick="rollPlanDay(${i})" aria-label="Zufällig" class="w-10 h-10 shrink-0 rounded-xl bg-[#1A1210] text-base active:scale-95 transition">🎲</button>
+              </div>`).join('')}
+          </div>
+          ${planned > 0 ? '<button onclick="clearPlan()" class="w-full py-2.5 text-xs font-bold text-[#C7B2AA]">Plan leeren</button>' : ''}
+        </div>`;
+    }
+
     let state = loadLocalState();
     rebuildSnap();
     let currentTab = 'randomizer';
@@ -532,6 +621,7 @@
           st.updatedAt = +p.updatedAt || 0;
         }
       } catch (e) {}
+      ensurePlan(st);
       return st;
     }
 
@@ -629,7 +719,7 @@
         badge.classList.remove('flex');
       }
 
-      ['randomizer', 'meals', 'shopping', 'couple'].forEach(tab => {
+      ['randomizer', 'meals', 'shopping', 'plan'].forEach(tab => {
         const btn = document.getElementById('nav-' + tab);
         const pill = btn.querySelector('.nav-pill');
         if (tab === currentTab) {
@@ -1063,11 +1153,15 @@
         `;
       }
 
+      else if (currentTab === 'plan') {
+        main.innerHTML = planHtml();
+      }
+
       else if (currentTab === 'couple') {
         main.innerHTML = `
           <div class="space-y-5">
             <div class="bg-[#261B18] rounded-3xl p-5 border border-[#3E2C27]">
-              <h2 class="text-base font-extrabold text-white mb-1">💑 Paar-Synchronisation</h2>
+              <h2 class="text-base font-extrabold text-white mb-1">⚙️ Einstellungen: Paar-Synchronisation</h2>
               <p class="text-xs text-[#C7B2AA] mb-4">Mit demselben Paar-Code synchronisieren sich eure Gerichte und die Einkaufsliste automatisch live!</p>
               
               <form onsubmit="saveCoupleSettings(event)" class="space-y-3">
