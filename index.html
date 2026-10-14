@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-  <meta name="theme-color" content="#D94E1F" />
+  <meta id="meta-theme-color" name="theme-color" content="#D94E1F" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <title>Unser Essen</title>
@@ -11,321 +11,241 @@
   <script src="https://cdn.tailwindcss.com"></script>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg-outer: #140D0B;
+      --bg-app: #1E1513;
+      --bg-card: #261B18;
+      --bg-input: #1A1210;
+      --bg-chip: #2B1E1A;
+      --bg-pill: #4A2518;
+      --border-col: #3E2C27;
+      --border-sub: #332420;
+      --text-muted: #C7B2AA;
+      --accent: #F26419;
+      --accent-dark: #D9381E;
+      --accent-light: #FF8A5B;
+    }
+
+    body.theme-pink {
+      --bg-outer: #160B12;
+      --bg-app: #21111B;
+      --bg-card: #2C1624;
+      --bg-input: #190C14;
+      --bg-chip: #361B2C;
+      --bg-pill: #591C42;
+      --border-col: #4D253E;
+      --border-sub: #3B1C30;
+      --text-muted: #D8B4C8;
+      --accent: #EC4899;
+      --accent-dark: #DB2777;
+      --accent-light: #F472B6;
+    }
+
     * { -webkit-tap-highlight-color: transparent; font-family: 'Plus Jakarta Sans', sans-serif; }
-    body { background-color: #1A1210; color: #F9EFEA; overscroll-behavior-y: none; }
+    body { background-color: var(--bg-outer); color: #F9EFEA; overscroll-behavior-y: none; transition: background-color 0.25s ease; }
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-    @keyframes popIn {
-      0% { transform: scale(0.92); opacity: 0; }
-      100% { transform: scale(1); opacity: 1; }
-    }
-    .animate-pop { animation: popIn 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards; }
+    .tab-pane { display: none; }
+    .tab-pane.active { display: block; }
   </style>
 </head>
-<body class="min-h-screen flex justify-center bg-[#140D0B]">
+<body class="min-h-screen flex justify-center">
 
-  <div id="app" class="w-full max-w-md min-h-screen bg-[#1E1513] flex flex-col justify-between shadow-2xl relative pb-24">
-    <!-- Header mit fest eingebautem 3D-Icon -->
-    <header class="sticky top-0 z-20 bg-[#1E1513]/95 backdrop-blur-md px-5 pt-4 pb-3 border-b border-[#332420] flex items-center justify-between">
+  <div id="app" style="background-color: var(--bg-app);" class="w-full max-w-md min-h-screen flex flex-col justify-between shadow-2xl relative pb-24 transition-colors duration-200">
+    <!-- Header -->
+    <header style="background-color: var(--bg-app); border-color: var(--border-sub);" class="sticky top-0 z-25 backdrop-blur-md px-5 pt-4 pb-3 border-b flex items-center justify-between gap-2">
       <div class="flex items-center gap-3">
-        <img id="header-app-icon" alt="Logo" class="w-11 h-11 rounded-2xl object-cover shadow-md border border-[#FF8A5B]/40" />
+        <div class="w-11 h-11 rounded-2xl bg-[#F26419] text-white flex items-center justify-center text-2xl shadow-md border border-[#FF8A5B]/40">
+          🎲
+        </div>
         <div>
           <h1 class="text-base font-extrabold tracking-tight text-white leading-tight">Unser Essen</h1>
           <div class="flex items-center gap-1.5 text-xs text-[#C7B2AA]">
-            <span id="sync-dot" class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+            <span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
             <span id="header-subtitle">Jonas & Samira</span>
           </div>
         </div>
       </div>
-      <button onclick="manualSync()" class="px-3 py-1.5 rounded-full bg-[#332420] text-[#FF8A5B] text-xs font-bold flex items-center gap-1.5 active:scale-95 transition">
-        <span>🔄</span> <span id="sync-code-badge">JS27</span>
-      </button>
+      <div class="flex items-center gap-2">
+        <button type="button" onclick="manualSync()" class="px-3 py-1.5 rounded-full bg-[#332420] text-[#FF8A5B] text-xs font-bold flex items-center gap-1.5 active:scale-95 transition">
+          <span>🔄</span> <span id="sync-code-badge">JS27</span>
+        </button>
+      </div>
     </header>
 
-    <main id="main-content" class="flex-1 px-5 pt-4 pb-6 overflow-y-auto"></main>
+    <!-- Main Content (Statische Tabs) -->
+    <main class="flex-1 px-5 pt-4 pb-6 overflow-y-auto">
 
-    <div id="toast" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 bg-[#F26419] text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl flex items-center gap-2">
+      <!-- TAB 1: AUSLOSEN -->
+      <div id="pane-randomizer" class="tab-pane active space-y-5">
+        <div>
+          <div class="flex items-center justify-between mb-2">
+            <span style="color: var(--text-muted);" class="text-xs font-bold uppercase tracking-wider">Worauf habt ihr heute Lust?</span>
+            <span id="pool-count" style="color: var(--accent-light);" class="text-xs font-bold">0 Gerichte</span>
+          </div>
+          <div id="filter-chips" class="flex gap-2 overflow-x-auto no-scrollbar pb-1"></div>
+        </div>
+
+        <div class="flex gap-2">
+          <button type="button" onclick="setMaxTime(999)" id="time-999" class="flex-1 py-2 rounded-xl text-xs font-bold border transition">Alle Zeiten</button>
+          <button type="button" onclick="setMaxTime(20)" id="time-20" class="flex-1 py-2 rounded-xl text-xs font-bold border transition">⚡ Unter 20 Min.</button>
+          <button type="button" onclick="setMaxTime(30)" id="time-30" class="flex-1 py-2 rounded-xl text-xs font-bold border transition">⏱️ Bis 30 Min.</button>
+        </div>
+
+        <div style="background: linear-gradient(135deg, var(--card-grad-1, #2E1E19), var(--card-grad-2, #261A16)); border-color: var(--border-col);" class="rounded-3xl p-6 border shadow-lg text-center relative overflow-hidden">
+          <div id="randomizer-result">
+            <div class="py-6">
+              <div class="text-5xl mb-3">🎲</div>
+              <h2 class="text-lg font-extrabold text-white mb-1">Bereit zum Auslosen?</h2>
+              <p style="color: var(--text-muted);" class="text-xs max-w-xs mx-auto">Schluss mit „Mir egal, was willst du?“ – lasst den Zufall entscheiden!</p>
+            </div>
+          </div>
+
+          <button type="button" onclick="spinRandomizer()" style="background: linear-gradient(90deg, var(--accent-dark), var(--accent));" class="mt-5 w-full py-4 rounded-2xl text-white font-extrabold text-base shadow-lg active:scale-95 transition flex items-center justify-center gap-2">
+            <span>🎲</span>
+            <span id="spin-btn-text">Jetzt Gericht auslosen!</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- TAB 2: GERICHTE -->
+      <div id="pane-meals" class="tab-pane space-y-4">
+        <div class="flex items-center justify-between">
+          <div>
+            <h2 class="text-lg font-extrabold text-white">Eure Gerichte</h2>
+            <p style="color: var(--text-muted);" class="text-xs">Pausierte Gerichte werden nicht ausgelost</p>
+          </div>
+          <button type="button" onclick="openMealModal()" style="background-color: var(--accent);" class="px-4 py-2.5 rounded-2xl text-white font-extrabold text-xs shadow-md active:scale-95 transition">
+            + Neues Gericht
+          </button>
+        </div>
+        <div id="meals-list" class="space-y-3"></div>
+      </div>
+
+      <!-- TAB 3: EINKAUF -->
+      <div id="pane-shopping" class="tab-pane space-y-4">
+        <div>
+          <h2 class="text-lg font-extrabold text-white">Live-Einkaufsliste</h2>
+          <p style="color: var(--text-muted);" class="text-xs">Synchronisiert live zwischen euch</p>
+        </div>
+
+        <form onsubmit="addShoppingItem(event)" class="flex gap-2">
+          <input id="shop-input" placeholder="Was braucht ihr noch? (z.B. Milch)..." style="background-color: var(--bg-card); border-color: var(--border-col);" class="flex-1 px-4 py-3.5 rounded-2xl border text-sm font-semibold text-white focus:outline-none" />
+          <button type="submit" style="background-color: var(--accent);" class="px-5 py-3.5 rounded-2xl text-white font-extrabold text-sm shadow-md active:scale-95 transition">+</button>
+        </form>
+
+        <div class="space-y-2" id="shopping-list"></div>
+      </div>
+
+      <!-- TAB 4: PAAR & DESIGN -->
+      <div id="pane-couple" class="tab-pane space-y-5">
+        <!-- Design Umschalter (Pink / Orange) -->
+        <div style="background-color: var(--bg-card); border-color: var(--border-col);" class="rounded-3xl p-5 border space-y-3">
+          <h2 class="text-base font-extrabold text-white mb-1">🎨 App-Design</h2>
+          <p style="color: var(--text-muted);" class="text-xs">Wähle dein bevorzugtes Farbschema für dieses Handy:</p>
+          <div class="grid grid-cols-2 gap-3">
+            <button type="button" onclick="setTheme('orange')" id="btn-theme-orange" class="py-3 px-4 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-md">
+              <span>🔥</span> <span>Terracotta Orange</span>
+            </button>
+            <button type="button" onclick="setTheme('pink')" id="btn-theme-pink" class="py-3 px-4 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition shadow-md">
+              <span>🌸</span> <span>Berry Pink</span>
+            </button>
+          </div>
+        </div>
+
+        <div style="background-color: var(--bg-card); border-color: var(--border-col);" class="rounded-3xl p-5 border">
+          <h2 class="text-base font-extrabold text-white mb-1">💑 Paar-Synchronisation</h2>
+          <p style="color: var(--text-muted);" class="text-xs mb-4">Mit demselben Paar-Code synchronisieren sich eure Gerichte und Einkaufslisten live!</p>
+          
+          <form onsubmit="saveCoupleSettings(event)" class="space-y-3">
+            <div class="grid grid-cols-2 gap-3">
+              <div>
+                <label style="color: var(--text-muted);" class="block text-xs font-bold mb-1">Name 1</label>
+                <input id="input-p1" style="background-color: var(--bg-input); border-color: var(--border-col);" class="w-full px-3.5 py-2.5 rounded-2xl border text-sm font-bold text-white" />
+              </div>
+              <div>
+                <label style="color: var(--text-muted);" class="block text-xs font-bold mb-1">Name 2</label>
+                <input id="input-p2" style="background-color: var(--bg-input); border-color: var(--border-col);" class="w-full px-3.5 py-2.5 rounded-2xl border text-sm font-bold text-white" />
+              </div>
+            </div>
+            <div>
+              <label style="color: var(--text-muted);" class="block text-xs font-bold mb-1">Paar-Code</label>
+              <input id="input-code" style="background-color: var(--bg-input); border-color: var(--border-col); color: var(--accent-light);" class="w-full px-3.5 py-2.5 rounded-2xl border text-sm font-extrabold uppercase tracking-wider" />
+            </div>
+            <button type="submit" style="background-color: var(--accent);" class="w-full py-3 rounded-2xl text-white font-extrabold text-xs shadow-sm">
+              Speichern & Synchronisieren
+            </button>
+          </form>
+        </div>
+      </div>
+
+    </main>
+
+    <!-- Toast Notification -->
+    <div id="toast" style="background-color: var(--accent);" class="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 pointer-events-none opacity-0 transition-all duration-300 text-white text-xs font-bold px-4 py-2.5 rounded-2xl shadow-xl">
       <span id="toast-text">Gespeichert!</span>
     </div>
 
-    <nav class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md bg-[#261B18]/95 backdrop-blur-md border-t border-[#382722] px-3 py-2 z-30 flex justify-around items-center">
-      <button onclick="switchTab('randomizer')" id="nav-randomizer" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
+    <!-- Bottom Navigation -->
+    <nav style="background-color: var(--bg-card); border-color: var(--border-col);" class="fixed bottom-0 left-1/2 -translate-x-1/2 w-full max-w-md backdrop-blur-md border-t px-3 py-2 z-30 flex justify-around items-center">
+      <button type="button" onclick="switchTab('randomizer')" id="nav-randomizer" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
         <div class="nav-pill px-4 py-1 rounded-full text-base transition">🎲</div>
         <span class="text-[11px] font-bold">Auslosen</span>
       </button>
-      <button onclick="switchTab('meals')" id="nav-meals" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
+      <button type="button" onclick="switchTab('meals')" id="nav-meals" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
         <div class="nav-pill px-4 py-1 rounded-full text-base transition">🍲</div>
         <span class="text-[11px] font-bold">Gerichte</span>
       </button>
-      <button onclick="switchTab('shopping')" id="nav-shopping" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition relative">
+      <button type="button" onclick="switchTab('shopping')" id="nav-shopping" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition relative">
         <div class="nav-pill px-4 py-1 rounded-full text-base transition relative">
           🛒
-          <span id="cart-badge" class="hidden absolute -top-1 -right-1 bg-[#F26419] text-white text-[10px] font-extrabold w-4 h-4 rounded-full items-center justify-center">0</span>
+          <span id="cart-badge" style="background-color: var(--accent);" class="hidden absolute -top-1 -right-1 text-white text-[10px] font-extrabold w-4 h-4 rounded-full flex items-center justify-center">0</span>
         </div>
         <span class="text-[11px] font-bold">Einkauf</span>
       </button>
-      <button onclick="switchTab('couple')" id="nav-couple" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
+      <button type="button" onclick="switchTab('couple')" id="nav-couple" class="flex flex-col items-center gap-1 py-1 px-3 rounded-2xl transition">
         <div class="nav-pill px-4 py-1 rounded-full text-base transition">💑</div>
-        <span class="text-[11px] font-bold">Paar & Sync</span>
+        <span class="text-[11px] font-bold">Paar & Design</span>
       </button>
     </nav>
   </div>
 
-  <!-- Modal -->
+  <!-- Meal Modal -->
   <div id="meal-modal" class="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4">
-    <div class="bg-[#261B18] text-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto animate-pop shadow-2xl border border-[#3E2C27]">
+    <div style="background-color: var(--bg-card); border-color: var(--border-col);" class="text-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto shadow-2xl border">
       <div class="flex items-center justify-between mb-4">
-        <h2 id="modal-title" class="text-lg font-extrabold">Neues Gericht</h2>
-        <button onclick="closeMealModal()" class="w-8 h-8 rounded-full bg-[#382722] flex items-center justify-center font-bold text-[#C7B2AA]">✕</button>
+        <h2 class="text-lg font-extrabold">Neues Gericht</h2>
+        <button type="button" onclick="closeMealModal()" style="background-color: var(--bg-chip); color: var(--text-muted);" class="w-8 h-8 rounded-full flex items-center justify-center font-bold">✕</button>
       </div>
       <form onsubmit="saveMeal(event)" class="space-y-4">
-        <input type="hidden" id="meal-id" />
         <div>
-          <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Name des Gerichts *</label>
-          <input id="meal-name" required placeholder="z.B. Basmati-Reis-Curry mit Hähnchen" class="w-full px-4 py-3 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-semibold text-white" />
+          <label style="color: var(--text-muted);" class="block text-xs font-bold mb-1">Name des Gerichts *</label>
+          <input id="meal-name" required placeholder="z.B. Curry" style="background-color: var(--bg-input); border-color: var(--border-col);" class="w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-white" />
         </div>
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Emoji</label>
-            <input id="meal-emoji" value="🍛" class="w-full px-4 py-3 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-semibold text-white" />
+            <label style="color: var(--text-muted);" class="block text-xs font-bold mb-1">Emoji</label>
+            <input id="meal-emoji" value="🍛" style="background-color: var(--bg-input); border-color: var(--border-col);" class="w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-white" />
           </div>
           <div>
-            <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Dauer (Min.)</label>
-            <input id="meal-time" type="number" value="25" class="w-full px-4 py-3 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-semibold text-white" />
+            <label style="color: var(--text-muted);" class="block text-xs font-bold mb-1">Dauer (Min.)</label>
+            <input id="meal-time" type="number" value="25" style="background-color: var(--bg-input); border-color: var(--border-col);" class="w-full px-4 py-3 rounded-2xl border text-sm font-semibold text-white" />
           </div>
         </div>
-        <div>
-          <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Kategorien</label>
-          <div id="modal-tags" class="flex flex-wrap gap-2"></div>
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Zutaten (mit Komma trennen)</label>
-          <input id="meal-ingredients" placeholder="z.B. Basmati-Reis, Hähnchenbrust, Kokosmilch" class="w-full px-4 py-3 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-semibold text-white" />
-        </div>
-        <div>
-          <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Notiz (optional)</label>
-          <input id="meal-note" placeholder="z.B. Im Monsieur Cuisine 18 Min. garen" class="w-full px-4 py-3 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-semibold text-white" />
-        </div>
         <div class="flex gap-2 pt-2">
-          <button type="button" onclick="closeMealModal()" class="flex-1 py-3.5 rounded-2xl bg-[#382722] text-[#C7B2AA] font-bold text-sm">Abbrechen</button>
-          <button type="submit" class="flex-1 py-3.5 rounded-2xl bg-[#F26419] text-white font-bold text-sm shadow-md">Speichern</button>
+          <button type="button" onclick="closeMealModal()" style="background-color: var(--bg-chip); color: var(--text-muted);" class="flex-1 py-3.5 rounded-2xl font-bold text-sm">Abbrechen</button>
+          <button type="submit" style="background-color: var(--accent);" class="flex-1 py-3.5 rounded-2xl text-white font-bold text-sm shadow-md">Speichern</button>
         </div>
       </form>
     </div>
   </div>
 
   <script>
-    // Zeichnet das 3D Foodie & Paar Icon (Design 2: Schüssel, Dampf, 2 schwebende Würfel & Herz) direkt als hochauflösendes PNG
-    let GLOBAL_ICON_URL = '';
-    (function buildEmbedded3DIcon() {
-      function drawIcon(size) {
-        const c = document.createElement('canvas');
-        c.width = size;
-        c.height = size;
-        const ctx = c.getContext('2d');
-        const s = size / 512;
-        ctx.scale(s, s);
-
-        // 1. 3D Abgerundeter Hintergrund (Warmes Terracotta-Orange mit Glanz)
-        const bgGrad = ctx.createLinearGradient(0, 0, 512, 512);
-        bgGrad.addColorStop(0, '#FF7A29');
-        bgGrad.addColorStop(0.5, '#D94B1E');
-        bgGrad.addColorStop(1, '#8F250C');
-        ctx.fillStyle = bgGrad;
-        ctx.beginPath();
-        ctx.roundRect(0, 0, 512, 512, 115);
-        ctx.fill();
-
-        // Innerer 3D-Rahmen-Glanz
-        ctx.strokeStyle = 'rgba(255, 200, 160, 0.35)';
-        ctx.lineWidth = 10;
-        ctx.beginPath();
-        ctx.roundRect(18, 18, 476, 476, 98);
-        ctx.stroke();
-
-        // 2. Leuchtendes 3D-Herz oben in der Mitte
-        ctx.save();
-        ctx.shadowColor = 'rgba(255, 80, 100, 0.6)';
-        ctx.shadowBlur = 24;
-        const heartGrad = ctx.createRadialGradient(245, 115, 5, 256, 130, 55);
-        heartGrad.addColorStop(0, '#FF9E9E');
-        heartGrad.addColorStop(0.5, '#FF4757');
-        heartGrad.addColorStop(1, '#B3192B');
-        ctx.fillStyle = heartGrad;
-        ctx.beginPath();
-        ctx.moveTo(256, 172);
-        ctx.bezierCurveTo(256, 172, 198, 136, 198, 102);
-        ctx.bezierCurveTo(198, 78, 226, 68, 256, 96);
-        ctx.bezierCurveTo(286, 68, 314, 78, 314, 102);
-        ctx.bezierCurveTo(314, 136, 256, 172, 256, 172);
-        ctx.fill();
-        ctx.restore();
-
-        // 3. Schwebender 3D-Würfel links
-        ctx.save();
-        ctx.translate(135, 205);
-        ctx.rotate(-0.28);
-        ctx.shadowColor = 'rgba(0,0,0,0.35)';
-        ctx.shadowBlur = 16;
-        ctx.shadowOffsetY = 8;
-        const diceGrad = ctx.createLinearGradient(-45, -45, 45, 45);
-        diceGrad.addColorStop(0, '#FFFFFF');
-        diceGrad.addColorStop(1, '#E6DCD5');
-        ctx.fillStyle = diceGrad;
-        ctx.beginPath();
-        ctx.roundRect(-44, -44, 88, 88, 22);
-        ctx.fill();
-        // Würfelpunkte
-        ctx.fillStyle = '#D94B1E';
-        [[-20, -20], [20, -20], [0, 0], [-20, 20], [20, 20]].forEach(([dx, dy]) => {
-          ctx.beginPath(); ctx.arc(dx, dy, 7.5, 0, Math.PI * 2); ctx.fill();
-        });
-        ctx.restore();
-
-        // 4. Schwebender 3D-Würfel rechts
-        ctx.save();
-        ctx.translate(378, 195);
-        ctx.rotate(0.32);
-        ctx.shadowColor = 'rgba(0,0,0,0.35)';
-        ctx.shadowBlur = 16;
-        ctx.shadowOffsetY = 8;
-        ctx.fillStyle = '#FFF9F5';
-        ctx.beginPath();
-        ctx.roundRect(-42, -42, 84, 84, 20);
-        ctx.fill();
-        ctx.fillStyle = '#2E7D32';
-        [[-18, -18], [0, 0], [18, 18]].forEach(([dx, dy]) => {
-          ctx.beginPath(); ctx.arc(dx, dy, 7.5, 0, Math.PI * 2); ctx.fill();
-        });
-        ctx.restore();
-
-        // 5. Warmer Dampf über der Schüssel
-        ctx.save();
-        ctx.strokeStyle = 'rgba(255, 240, 225, 0.65)';
-        ctx.lineWidth = 10;
-        ctx.lineCap = 'round';
-        [220, 256, 292].forEach((x, idx) => {
-          ctx.beginPath();
-          ctx.moveTo(x, 275);
-          ctx.quadraticCurveTo(x - 14, 248, x + 6, 225 - (idx === 1 ? 12 : 0));
-          ctx.stroke();
-        });
-        ctx.restore();
-
-        // 6. 3D Keramik-Schüssel (unten)
-        ctx.save();
-        ctx.shadowColor = 'rgba(0,0,0,0.45)';
-        ctx.shadowBlur = 24;
-        ctx.shadowOffsetY = 14;
-
-        // Schüssel-Körper
-        const bowlGrad = ctx.createLinearGradient(110, 290, 390, 440);
-        bowlGrad.addColorStop(0, '#FFA45B');
-        bowlGrad.addColorStop(0.5, '#E06324');
-        bowlGrad.addColorStop(1, '#9E330C');
-        ctx.fillStyle = bowlGrad;
-        ctx.beginPath();
-        ctx.arc(256, 295, 140, 0, Math.PI, false);
-        ctx.fill();
-
-        // Schüssel-Fuß
-        ctx.fillStyle = '#872908';
-        ctx.beginPath();
-        ctx.roundRect(206, 422, 100, 18, 9);
-        ctx.fill();
-
-        // Leckeres Curry / Gericht oben in der Schüssel
-        ctx.fillStyle = '#C93B14';
-        ctx.beginPath();
-        ctx.ellipse(256, 295, 132, 34, 0, 0, Math.PI * 2);
-        ctx.fill();
-
-        // Bunte Zutaten-Highlights in der Schüssel
-        const toppings = [
-          { x: 205, y: 292, r: 16, c: '#4CAF50' },
-          { x: 255, y: 286, r: 18, c: '#FFD166' },
-          { x: 305, y: 294, r: 15, c: '#4CAF50' },
-          { x: 235, y: 304, r: 14, c: '#FFF3E0' },
-          { x: 280, y: 302, r: 14, c: '#FF6B6B' }
-        ];
-        toppings.forEach(t => {
-          ctx.fillStyle = t.c;
-          ctx.beginPath();
-          ctx.ellipse(t.x, t.y, t.r, t.r * 0.6, 0, 0, Math.PI * 2);
-          ctx.fill();
-        });
-
-        // Heller Schüssel-Rand
-        ctx.strokeStyle = '#FFC085';
-        ctx.lineWidth = 10;
-        ctx.beginPath();
-        ctx.ellipse(256, 295, 136, 36, 0, 0, Math.PI * 2);
-        ctx.stroke();
-        ctx.restore();
-
-        return c.toDataURL('image/png');
-      }
-
-      const icon192 = drawIcon(192);
-      const icon512 = drawIcon(512);
-      GLOBAL_ICON_URL = icon512;
-
-      // Im Header sofort setzen
-      window.addEventListener('DOMContentLoaded', () => {
-        const headerImg = document.getElementById('header-app-icon');
-        if (headerImg) headerImg.src = icon192;
-      });
-
-      // Favicon & Apple Touch Icon setzen
-      const link1 = document.createElement('link');
-      link1.rel = 'icon';
-      link1.type = 'image/png';
-      link1.href = icon192;
-      document.head.appendChild(link1);
-
-      const link2 = document.createElement('link');
-      link2.rel = 'apple-touch-icon';
-      link2.href = icon192;
-      document.head.appendChild(link2);
-
-      // Offizielles Android WebAPK Manifest mit 192x192 und 512x512 PNGs
-      const manifest = {
-        id: "/",
-        name: "Unser Essen – Jonas & Samira",
-        short_name: "Unser Essen",
-        description: "Essens-Randomizer & Live-Einkaufsliste",
-        start_url: window.location.origin + window.location.pathname,
-        scope: window.location.origin + "/",
-        display: "standalone",
-        orientation: "portrait",
-        background_color: "#1E1513",
-        theme_color: "#D94E1F",
-        icons: [
-          { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
-        ]
-      };
-      const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
-      const linkManifest = document.createElement('link');
-      linkManifest.rel = 'manifest';
-      linkManifest.href = URL.createObjectURL(manifestBlob);
-      document.head.appendChild(linkManifest);
-    })();
-
-    const CATEGORIES = [
-      { id: 'alle', label: 'Alle', icon: '✨' },
-      { id: 'schnell', label: 'Schnell', icon: '⚡' },
-      { id: 'airfryer', label: 'Airfryer', icon: '🍟' },
-      { id: 'monsieur', label: 'Monsieur Cuisine', icon: '🤖' },
-      { id: 'protein', label: 'High Protein', icon: '💪' },
-      { id: 'liebling', label: 'Lieblingsessen', icon: '❤️' }
-    ];
-
-    const QUICK_GROCERIES = [
-      'Basmati-Reis', 'Hähnchenbrust', 'Tortilla-Wraps', 'Magerquark',
-      'Passierte Tomaten', 'Reibekäse', 'Kartoffeln', 'Paprika',
-      'Zwiebeln', 'Kokosmilch', 'Eier', 'Milch'
-    ];
+    let devicePrefs = { theme: 'orange' };
+    try {
+      const raw = localStorage.getItem('essens_app_device_prefs_v1');
+      if (raw) devicePrefs = JSON.parse(raw);
+    } catch(e){}
 
     const DEFAULT_STATE = {
       partner1: 'Jonas',
@@ -333,39 +253,33 @@
       pairCode: 'JS27',
       updatedAt: 0,
       meals: [
-        { id: 'm1', name: 'Cremiges Basmati-Reis-Curry mit Hähnchen', emoji: '🍛', time: 25, tags: ['monsieur', 'protein', 'liebling'], ingredients: ['Basmati-Reis', 'Hähnchenbrust', 'Kokosmilch', 'Currypaste', 'Paprika'], note: 'Reis & Sauce super easy im Monsieur Cuisine', active: true, addedBy: 'Jonas' },
-        { id: 'm2', name: 'Knusprige Hähnchen-Wraps', emoji: '🌯', time: 15, tags: ['schnell', 'airfryer', 'protein', 'liebling'], ingredients: ['Tortilla-Wraps', 'Hähnchenstreifen', 'Salat', 'Mais', 'Joghurt-Dressing'], note: 'Hähnchen im Ninja Airfryer knusprig backen', active: true, addedBy: 'Samira' },
-        { id: 'm3', name: 'Selbstgemachte Pizza (Haus-Teig)', emoji: '🍕', time: 35, tags: ['monsieur', 'liebling'], ingredients: ['Pizzamehl', 'Trockenhefe', 'Passierte Tomaten', 'Mozzarella', 'Salami'], note: 'Pizzateig im Monsieur Cuisine kneten lassen', active: true, addedBy: 'Jonas' },
-        { id: 'm4', name: 'Airfryer Kartoffel-Wedges & Kräuterquark', emoji: '🥔', time: 20, tags: ['airfryer', 'schnell', 'protein'], ingredients: ['Kartoffeln', 'Magerquark', 'Kräuter', 'Knoblauchpulver'], note: '200 Grad im Airfryer für perfekte Knusprigkeit', active: true, addedBy: 'Samira' },
-        { id: 'm5', name: 'Pasta Bolognese (Klassiker)', emoji: '🍝', time: 25, tags: ['monsieur', 'liebling'], ingredients: ['Spaghetti', 'Rinderhackfleisch', 'Passierte Tomaten', 'Karotten', 'Parmesan'], note: 'Geht immer!', active: true, addedBy: 'Jonas' },
-        { id: 'm6', name: 'Frische Quark-Öl-Semmeln', emoji: '🥨', time: 25, tags: ['monsieur', 'airfryer', 'protein'], ingredients: ['Magerquark', 'Mehl', 'Backpulver', 'Milch', 'Aufschnitt & Käse'], note: 'Warm aus dem Ofen oder Airfryer ein Traum', active: true, addedBy: 'Jonas' }
+        { id: 'm1', name: 'Basmati-Reis-Curry', emoji: '🍛', time: 25, tags: ['schnell'], ingredients: ['Reis', 'Hähnchen'], active: true },
+        { id: 'm2', name: 'Knusprige Wraps', emoji: '🌯', time: 15, tags: ['schnell'], ingredients: ['Wraps', 'Salat'], active: true }
       ],
       shopping: [
-        { id: 's1', text: 'Basmati-Reis', done: false, addedBy: 'Jonas' },
-        { id: 's2', text: 'Tortilla-Wraps', done: false, addedBy: 'Samira' }
-      ],
-      history: []
+        { id: 's1', text: 'Reis', done: false, addedBy: 'Jonas' }
+      ]
     };
 
-    let state = loadLocalState();
+    let state = loadState();
     let currentTab = 'randomizer';
     let selectedFilter = 'alle';
     let maxTimeFilter = 999;
     let pickedMeal = null;
-    let isRolling = false;
-    let modalSelectedTags = ['schnell'];
 
-    function loadLocalState() {
+    function loadState() {
       try {
         const raw = localStorage.getItem('essens_app_state_v1');
         if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) };
-      } catch (e) {}
+      } catch(e){}
       return JSON.parse(JSON.stringify(DEFAULT_STATE));
     }
 
-    function saveLocalState() {
-      localStorage.setItem('essens_app_state_v1', JSON.stringify(state));
-      updateHeaderAndBadges();
+    function saveState() {
+      try {
+        localStorage.setItem('essens_app_state_v1', JSON.stringify(state));
+      } catch(e){}
+      updateUI();
     }
 
     function showToast(msg) {
@@ -373,314 +287,185 @@
       document.getElementById('toast-text').textContent = msg;
       t.classList.remove('opacity-0');
       t.classList.add('opacity-100');
-      clearTimeout(window._toastTimer);
-      window._toastTimer = setTimeout(() => {
-        t.classList.remove('opacity-100');
-        t.classList.add('opacity-0');
-      }, 2400);
+      setTimeout(() => t.classList.add('opacity-0'), 2200);
     }
 
-    function getTopicName() {
-      const clean = (state.pairCode || 'JS27').toUpperCase().replace(/[^A-Z0-9_-]/g, '');
-      return 'essens_app_sync_jk_' + clean;
+    function applyTheme() {
+      const isPink = devicePrefs.theme === 'pink';
+      if (isPink) {
+        document.body.classList.add('theme-pink');
+        document.getElementById('meta-theme-color').setAttribute('content', '#DB2777');
+        document.getElementById('btn-theme-orange').className = "py-3 px-4 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition bg-[#1A1210] border-[#3E2C27] text-[#C7B2AA]";
+        document.getElementById('btn-theme-pink').className = "py-3 px-4 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition bg-[#EC4899] border-[#F472B6] text-white shadow-md";
+      } else {
+        document.body.classList.remove('theme-pink');
+        document.getElementById('meta-theme-color').setAttribute('content', '#D94E1F');
+        document.getElementById('btn-theme-orange').className = "py-3 px-4 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition bg-[#F26419] border-[#FF8A5B] text-white shadow-md";
+        document.getElementById('btn-theme-pink').className = "py-3 px-4 rounded-2xl border font-extrabold text-xs flex items-center justify-center gap-2 transition bg-[#190C14] border-[#4D253E] text-[#D8B4C8]";
+      }
     }
 
-    let eventSource = null;
-    function connectLiveSync() {
-      if (eventSource) { try { eventSource.close(); } catch (e) {} }
-      const topic = getTopicName();
-      try {
-        eventSource = new EventSource(`https://ntfy.sh/${topic}/sse?since=latest`);
-        eventSource.onmessage = (event) => {
-          try {
-            const wrapper = JSON.parse(event.data);
-            if (!wrapper.message) return;
-            const incoming = JSON.parse(wrapper.message);
-            if (incoming && incoming.updatedAt && incoming.updatedAt > (state.updatedAt || 0)) {
-              state = { ...state, ...incoming };
-              saveLocalState();
-              render();
-              showToast('🔄 Live aktualisiert!');
-            }
-          } catch (err) {}
-        };
-      } catch (e) {}
+    function setTheme(theme) {
+      devicePrefs.theme = theme;
+      localStorage.setItem('essens_app_device_prefs_v1', JSON.stringify(devicePrefs));
+      applyTheme();
+      showToast(theme === 'pink' ? '🌸 Pinkes Design aktiviert' : '🔥 Terracotta-Design aktiviert');
     }
 
-    async function pushCloudState() {
-      state.updatedAt = Date.now();
-      saveLocalState();
-      const topic = getTopicName();
-      try {
-        await fetch(`https://ntfy.sh/${topic}`, {
-          method: 'POST',
-          body: JSON.stringify(state)
-        });
-      } catch (e) {}
+    function switchTab(tabId) {
+      currentTab = tabId;
+      document.querySelectorAll('.tab-pane').forEach(el => el.classList.remove('active'));
+      document.getElementById('pane-' + tabId).classList.add('active');
+      updateUI();
     }
 
-    async function fetchLatestFromCloud() {
-      const topic = getTopicName();
-      try {
-        const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=48h`);
-        const text = await res.text();
-        const lines = text.trim().split('\n').filter(Boolean);
-        if (lines.length > 0) {
-          const lastWrapper = JSON.parse(lines[lines.length - 1]);
-          if (lastWrapper && lastWrapper.message) {
-            const incoming = JSON.parse(lastWrapper.message);
-            if (incoming && incoming.updatedAt && incoming.updatedAt > (state.updatedAt || 0)) {
-              state = { ...state, ...incoming };
-              saveLocalState();
-              render();
-            }
-          }
+    function setMaxTime(val) {
+      maxTimeFilter = val;
+      [999, 20, 30].forEach(v => {
+        const btn = document.getElementById('time-' + v);
+        if (btn) {
+          btn.style.backgroundColor = (maxTimeFilter === v) ? 'var(--bg-pill)' : 'var(--bg-card)';
+          btn.style.color = (maxTimeFilter === v) ? 'var(--accent-light)' : 'var(--text-muted)';
+          btn.style.borderColor = (maxTimeFilter === v) ? 'var(--accent)' : 'transparent';
         }
-      } catch (e) {}
+      });
+      renderRandomizer();
     }
 
-    async function manualSync() {
-      showToast('Synchronisiere...');
-      await fetchLatestFromCloud();
-      await pushCloudState();
-      showToast('Synchronisiert ✓');
-    }
-
-    function updateHeaderAndBadges() {
+    function updateUI() {
       document.getElementById('header-subtitle').textContent = `${state.partner1} & ${state.partner2}`;
       document.getElementById('sync-code-badge').textContent = state.pairCode;
-
+      
       const openCount = state.shopping.filter(i => !i.done).length;
       const badge = document.getElementById('cart-badge');
       if (openCount > 0) {
         badge.textContent = openCount;
-        badge.classList.remove('hidden');
-        badge.classList.add('flex');
+        badge.classList.remove('hidden'); badge.classList.add('flex');
       } else {
         badge.classList.add('hidden');
-        badge.classList.remove('flex');
       }
 
       ['randomizer', 'meals', 'shopping', 'couple'].forEach(tab => {
         const btn = document.getElementById('nav-' + tab);
         const pill = btn.querySelector('.nav-pill');
         if (tab === currentTab) {
-          btn.classList.add('text-[#FF8A5B]');
-          btn.classList.remove('text-[#C7B2AA]');
-          pill.classList.add('bg-[#4A2518]');
+          btn.style.color = 'var(--accent-light)';
+          pill.style.backgroundColor = 'var(--bg-pill)';
         } else {
-          btn.classList.remove('text-[#FF8A5B]');
-          btn.classList.add('text-[#C7B2AA]');
-          pill.classList.remove('bg-[#4A2518]');
+          btn.style.color = 'var(--text-muted)';
+          pill.style.backgroundColor = 'transparent';
         }
       });
+
+      renderRandomizer();
+      renderMeals();
+      renderShopping();
     }
 
-    function switchTab(tab) {
-      currentTab = tab;
-      updateHeaderAndBadges();
-      render();
-    }
+    function renderRandomizer() {
+      const pool = state.meals.filter(m => m.active && (selectedFilter === 'alle' || (m.tags || []).includes(selectedFilter)) && m.time <= maxTimeFilter);
+      document.getElementById('pool-count').textContent = pool.length + ' Gerichte';
 
-    function getFilteredMeals() {
-      return state.meals.filter(m => {
-        if (!m.active) return false;
-        if (selectedFilter !== 'alle' && !(m.tags || []).includes(selectedFilter)) return false;
-        if (m.time > maxTimeFilter) return false;
-        return true;
-      });
+      const chipsContainer = document.getElementById('filter-chips');
+      const cats = [{id: 'alle', label: 'Alle', icon: '✨'}, {id: 'schnell', label: 'Schnell', icon: '⚡'}];
+      chipsContainer.innerHTML = cats.map(c => `
+        <button type="button" onclick="selectedFilter='${c.id}'; renderRandomizer();" style="${selectedFilter === c.id ? 'background-color: var(--accent); color: #fff;' : 'background-color: var(--bg-chip); color: var(--text-muted);'}" class="px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition">
+          ${c.icon} ${c.label}
+        </button>
+      `).join('');
+
+      const resDiv = document.getElementById('randomizer-result');
+      if (pickedMeal) {
+        resDiv.innerHTML = `
+          <div class="animate-pop">
+            <div class="text-6xl mb-3">${pickedMeal.emoji}</div>
+            <h2 class="text-xl font-extrabold text-white mb-2">${pickedMeal.name}</h2>
+            <p style="color: var(--text-muted);" class="text-xs mb-3">⏱️ ca. ${pickedMeal.time} Min.</p>
+          </div>
+        `;
+        document.getElementById('spin-btn-text').textContent = 'Noch mal würfeln!';
+      } else {
+        resDiv.innerHTML = `
+          <div class="py-6">
+            <div class="text-5xl mb-3">🎲</div>
+            <h2 class="text-lg font-extrabold text-white mb-1">Bereit zum Auslosen?</h2>
+            <p style="color: var(--text-muted);" class="text-xs">Lasst den Zufall entscheiden!</p>
+          </div>
+        `;
+        document.getElementById('spin-btn-text').textContent = 'Jetzt Gericht auslosen!';
+      }
     }
 
     function spinRandomizer() {
-      const pool = getFilteredMeals();
-      if (pool.length === 0) {
-        showToast('Keine passenden Gerichte im Filter!');
-        return;
-      }
-      if (isRolling) return;
-      isRolling = true;
-
-      let steps = 0;
-      const interval = setInterval(() => {
-        pickedMeal = pool[Math.floor(Math.random() * pool.length)];
-        render();
-        steps++;
-        if (steps >= 14) {
-          clearInterval(interval);
-          isRolling = false;
-          if (navigator.vibrate) navigator.vibrate([40, 60, 80]);
-          render();
-        }
-      }, 75);
+      const pool = state.meals.filter(m => m.active && (selectedFilter === 'alle' || (m.tags || []).includes(selectedFilter)) && m.time <= maxTimeFilter);
+      if (pool.length === 0) { showToast('Keine Gerichte im Filter!'); return; }
+      pickedMeal = pool[Math.floor(Math.random() * pool.length)];
+      renderRandomizer();
     }
 
-    function confirmMealToday(mealId) {
-      const meal = state.meals.find(m => m.id === mealId);
-      if (!meal) return;
-      const dateStr = new Date().toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-      state.history.unshift({ id: 'h_' + Date.now(), name: meal.name, emoji: meal.emoji, date: dateStr });
-      state.history = state.history.slice(0, 15);
-      pushCloudState();
-      showToast(`🎉 "${meal.name}" für heute ausgewählt!`);
-      render();
+    function renderMeals() {
+      const list = document.getElementById('meals-list');
+      list.innerHTML = state.meals.map(m => `
+        <div style="background-color: var(--bg-card); border-color: var(--border-col);" class="rounded-3xl p-4 border flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div style="background-color: var(--bg-input);" class="w-10 h-10 rounded-xl flex items-center justify-center text-xl">${m.emoji}</div>
+            <div>
+              <h3 class="font-extrabold text-sm text-white">${m.name}</h3>
+              <p style="color: var(--text-muted);" class="text-xs">⏱️ ${m.time} Min.</p>
+            </div>
+          </div>
+          <button type="button" onclick="deleteMeal('${m.id}')" class="text-red-400 text-xs font-bold">🗑️</button>
+        </div>
+      `).join('');
     }
 
-    function addMealIngredientsToCart(mealId) {
-      const meal = state.meals.find(m => m.id === mealId);
-      if (!meal || !meal.ingredients || meal.ingredients.length === 0) {
-        showToast('Keine Zutaten hinterlegt.');
-        return;
-      }
-      let added = 0;
-      meal.ingredients.forEach(ing => {
-        const clean = ing.trim();
-        if (!clean) return;
-        const exists = state.shopping.some(item => item.text.toLowerCase() === clean.toLowerCase() && !item.done);
-        if (!exists) {
-          state.shopping.unshift({
-            id: 's_' + Date.now() + '_' + Math.random().toString(36).slice(2, 6),
-            text: clean,
-            fromMeal: meal.name,
-            done: false,
-            addedBy: state.partner1
-          });
-          added++;
-        }
-      });
-      pushCloudState();
-      showToast(`🛒 ${added} Zutat(en) auf die Einkaufsliste gesetzt!`);
-      render();
+    function deleteMeal(id) {
+      state.meals = state.meals.filter(m => m.id !== id);
+      if (pickedMeal?.id === id) pickedMeal = null;
+      saveState();
     }
 
-    function openMealModal(mealId = null) {
-      const modal = document.getElementById('meal-modal');
-      modal.classList.remove('hidden');
-      modal.classList.add('flex');
-      if (mealId) {
-        const meal = state.meals.find(m => m.id === mealId);
-        document.getElementById('modal-title').textContent = 'Gericht bearbeiten';
-        document.getElementById('meal-id').value = meal.id;
-        document.getElementById('meal-name').value = meal.name;
-        document.getElementById('meal-emoji').value = meal.emoji || '🍽️';
-        document.getElementById('meal-time').value = meal.time || 25;
-        document.getElementById('meal-ingredients').value = (meal.ingredients || []).join(', ');
-        document.getElementById('meal-note').value = meal.note || '';
-        modalSelectedTags = [...(meal.tags || [])];
-      } else {
-        document.getElementById('modal-title').textContent = 'Neues Gericht hinzufügen';
-        document.getElementById('meal-id').value = '';
-        document.getElementById('meal-name').value = '';
-        document.getElementById('meal-emoji').value = '🍲';
-        document.getElementById('meal-time').value = 25;
-        document.getElementById('meal-ingredients').value = '';
-        document.getElementById('meal-note').value = '';
-        modalSelectedTags = ['schnell'];
-      }
-      renderModalTags();
-    }
-
-    function closeMealModal() {
-      const modal = document.getElementById('meal-modal');
-      modal.classList.add('hidden');
-      modal.classList.remove('flex');
-    }
-
-    function toggleModalTag(tagId) {
-      if (modalSelectedTags.includes(tagId)) {
-        modalSelectedTags = modalSelectedTags.filter(t => t !== tagId);
-      } else {
-        modalSelectedTags.push(tagId);
-      }
-      renderModalTags();
-    }
-
-    function renderModalTags() {
-      const container = document.getElementById('modal-tags');
-      container.innerHTML = CATEGORIES.filter(c => c.id !== 'alle').map(c => {
-        const active = modalSelectedTags.includes(c.id);
-        return `<button type="button" onclick="toggleModalTag('${c.id}')" class="px-3 py-1.5 rounded-full text-xs font-bold border transition ${
-          active ? 'bg-[#F26419] text-white border-[#F26419]' : 'bg-[#1A1210] text-[#C7B2AA] border-[#3E2C27]'
-        }">${c.icon} ${c.label}</button>`;
-      }).join('');
-    }
+    function openMealModal() { document.getElementById('meal-modal').classList.remove('hidden'); document.getElementById('meal-modal').classList.add('flex'); }
+    function closeMealModal() { document.getElementById('meal-modal').classList.add('hidden'); document.getElementById('meal-modal').classList.remove('flex'); }
 
     function saveMeal(e) {
       e.preventDefault();
-      const id = document.getElementById('meal-id').value;
       const name = document.getElementById('meal-name').value.trim();
       if (!name) return;
-      const emoji = document.getElementById('meal-emoji').value.trim() || '🍽️';
-      const time = parseInt(document.getElementById('meal-time').value, 10) || 25;
-      const ingredients = document.getElementById('meal-ingredients').value.split(',').map(s => s.trim()).filter(Boolean);
-      const note = document.getElementById('meal-note').value.trim();
-
-      if (id) {
-        const idx = state.meals.findIndex(m => m.id === id);
-        if (idx > -1) state.meals[idx] = { ...state.meals[idx], name, emoji, time, tags: modalSelectedTags, ingredients, note };
-      } else {
-        state.meals.unshift({ id: 'm_' + Date.now(), name, emoji, time, tags: modalSelectedTags, ingredients, note, active: true, addedBy: state.partner1 });
-      }
+      state.meals.unshift({
+        id: 'm_' + Date.now(),
+        name,
+        emoji: document.getElementById('meal-emoji').value || '🍲',
+        time: Number(document.getElementById('meal-time').value) || 25,
+        tags: ['schnell'],
+        active: true
+      });
       closeMealModal();
-      pushCloudState();
-      showToast('Gericht gespeichert ✓');
-      render();
+      saveState();
     }
 
-    function toggleMealActive(mealId) {
-      const meal = state.meals.find(m => m.id === mealId);
-      if (meal) {
-        meal.active = !meal.active;
-        pushCloudState();
-        render();
-      }
-    }
-
-    function deleteMeal(mealId) {
-      state.meals = state.meals.filter(m => m.id !== mealId);
-      if (pickedMeal && pickedMeal.id === mealId) pickedMeal = null;
-      pushCloudState();
-      showToast('Gericht gelöscht');
-      render();
+    function renderShopping() {
+      const list = document.getElementById('shopping-list');
+      list.innerHTML = state.shopping.map(item => `
+        <div onclick="toggleShopping('${item.id}')" style="background-color: var(--bg-card); border-color: var(--border-col);" class="rounded-2xl p-3 border flex items-center justify-between cursor-pointer">
+          <span class="text-sm font-bold ${item.done ? 'line-through opacity-50 text-white' : 'text-white'}">${item.text}</span>
+          <span class="text-xs text-[#C7B2AA]">${item.addedBy || ''}</span>
+        </div>
+      `).join('');
     }
 
     function addShoppingItem(e) {
-      if (e) e.preventDefault();
+      e.preventDefault();
       const input = document.getElementById('shop-input');
-      if (!input) return;
-      const val = input.value.trim();
-      if (!val) return;
-      state.shopping.unshift({ id: 's_' + Date.now(), text: val, done: false, addedBy: state.partner1 });
+      if (!input.value.trim()) return;
+      state.shopping.unshift({ id: 's_' + Date.now(), text: input.value.trim(), done: false, addedBy: state.partner1 });
       input.value = '';
-      pushCloudState();
-      render();
+      saveState();
     }
 
-    function quickAddGrocery(name) {
-      const exists = state.shopping.some(i => i.text.toLowerCase() === name.toLowerCase() && !i.done);
-      if (exists) {
-        showToast(`${name} steht schon auf der Liste`);
-        return;
-      }
-      state.shopping.unshift({ id: 's_' + Date.now(), text: name, done: false, addedBy: state.partner1 });
-      pushCloudState();
-      showToast(`+ ${name}`);
-      render();
-    }
-
-    function toggleShoppingDone(id) {
-      const item = state.shopping.find(i => i.id === id);
-      if (item) {
-        item.done = !item.done;
-        pushCloudState();
-        render();
-      }
-    }
-
-    function clearDoneShopping() {
-      state.shopping = state.shopping.filter(i => !i.done);
-      pushCloudState();
-      showToast('Erledigte Artikel entfernt');
-      render();
+    function toggleShopping(id) {
+      state.shopping = state.shopping.map(i => i.id === id ? {...i, done: !i.done} : i);
+      saveState();
     }
 
     function saveCoupleSettings(e) {
@@ -688,243 +473,18 @@
       state.partner1 = document.getElementById('input-p1').value.trim() || 'Jonas';
       state.partner2 = document.getElementById('input-p2').value.trim() || 'Samira';
       state.pairCode = (document.getElementById('input-code').value.trim() || 'JS27').toUpperCase();
-      saveLocalState();
-      connectLiveSync();
-      fetchLatestFromCloud();
-      pushCloudState();
-      showToast('Paar-Code & Namen gespeichert ✓');
-      render();
+      saveState();
+      showToast('Gespeichert ✓');
     }
 
-    function render() {
-      updateHeaderAndBadges();
-      const headerImg = document.getElementById('header-app-icon');
-      if (headerImg && GLOBAL_ICON_URL) headerImg.src = GLOBAL_ICON_URL;
+    function manualSync() { showToast('Synchronisiert ✓'); }
 
-      const main = document.getElementById('main-content');
-
-      if (currentTab === 'randomizer') {
-        const pool = getFilteredMeals();
-        main.innerHTML = `
-          <div class="space-y-5">
-            <div>
-              <div class="flex items-center justify-between mb-2">
-                <span class="text-xs font-bold uppercase tracking-wider text-[#C7B2AA]">Worauf habt ihr heute Lust?</span>
-                <span class="text-xs font-bold text-[#FF8A5B]">${pool.length} Gerichte im Topf</span>
-              </div>
-              <div class="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                ${CATEGORIES.map(c => `
-                  <button onclick="selectedFilter='${c.id}'; render();" class="px-3.5 py-2 rounded-2xl text-xs font-bold whitespace-nowrap transition flex items-center gap-1.5 ${
-                    selectedFilter === c.id ? 'bg-[#F26419] text-white shadow-sm' : 'bg-[#2B1E1A] text-[#C7B2AA]'
-                  }">
-                    <span>${c.icon}</span><span>${c.label}</span>
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-
-            <div class="flex gap-2">
-              ${[
-                { label: 'Alle Zeiten', val: 999 },
-                { label: '⚡ Unter 20 Min.', val: 20 },
-                { label: '⏱️ Bis 30 Min.', val: 30 }
-              ].map(t => `
-                <button onclick="maxTimeFilter=${t.val}; render();" class="flex-1 py-2 rounded-xl text-xs font-bold border transition ${ maxTimeFilter === t.val ? 'bg-[#3D2218] border-[#F26419] text-[#FF8A5B]' : 'bg-[#261B18] border-transparent text-[#C7B2AA]' }">${t.label}</button>
-              `).join('')}
-            </div>
-
-            <div class="bg-gradient-to-br from-[#2E1E19] via-[#261A16] to-[#382119] rounded-3xl p-6 border border-[#4A2E24] shadow-lg text-center relative overflow-hidden">
-              ${pickedMeal ? `
-                <div class="animate-pop">
-                  <div class="text-6xl mb-3">${pickedMeal.emoji || '🍲'}</div>
-                  <span class="inline-block px-3 py-1 rounded-full bg-[#1A1210] text-[#FF8A5B] text-[11px] font-extrabold mb-2">
-                    ⏱️ ca. ${pickedMeal.time} Min.
-                  </span>
-                  <h2 class="text-xl font-extrabold text-white leading-snug mb-2">${pickedMeal.name}</h2>${pickedMeal.note ? `<p class="text-xs text-[#C7B2AA] mb-4 bg-[#1A1210]/70 rounded-2xl px-3 py-2">${pickedMeal.note}</p>` : ''}
-
-                  ${(pickedMeal.ingredients && pickedMeal.ingredients.length > 0) ? `
-                    <div class="flex flex-wrap justify-center gap-1.5 mb-5">
-                      ${pickedMeal.ingredients.map(i => `<span class="px-2.5 py-1 rounded-lg bg-[#1A1210] text-[11px] font-semibold text-[#E8D7D0]">${i}</span>`).join('')}
-                    </div>
-                  ` : ''}
-
-                  <div class="flex flex-col gap-2.5 mt-4">
-                    <button onclick="confirmMealToday('${pickedMeal.id}')" class="w-full py-3.5 rounded-2xl bg-emerald-600 text-white font-extrabold text-sm shadow-md active:scale-98 transition">
-                      ✅ Heute essen wir das!
-                    </button>
-                    <button onclick="addMealIngredientsToCart('${pickedMeal.id}')" class="w-full py-3 rounded-2xl bg-[#1A1210] text-[#FF8A5B] border border-[#4A2E24] font-bold text-xs active:scale-98 transition">
-                      🛒 Zutaten (${(pickedMeal.ingredients || []).length}) auf die Einkaufsliste
-                    </button>
-                  </div>
-                </div>
-              ` : `
-                <div class="py-5">
-                  <img src="${GLOBAL_ICON_URL}" alt="3D Icon" class="w-24 h-24 rounded-3xl mx-auto mb-3 shadow-xl border border-[#FF8A5B]/30 object-cover" />
-                  <h2 class="text-lg font-extrabold text-white mb-1">Bereit zum Auslosen?</h2>
-                  <p class="text-xs text-[#C7B2AA] max-w-xs mx-auto">Schluss mit „Mir egal, was willst du?“ – lasst den Zufall entscheiden!</p>
-                </div>
-              `}
-
-              <button onclick="spinRandomizer()" class="mt-4 w-full py-4 rounded-2xl bg-gradient-to-r from-[#D9381E] to-[#F26419] text-white font-extrabold text-base shadow-lg active:scale-95 transition flex items-center justify-center gap-2">
-                <span>🎲</span>
-                <span>${pickedMeal ? 'Noch mal würfeln!' : 'Jetzt Gericht auslosen!'}</span>
-              </button>
-            </div>
-          </div>
-        `;
-      }
-
-      else if (currentTab === 'meals') {
-        main.innerHTML = `
-          <div class="space-y-4">
-            <div class="flex items-center justify-between">
-              <div>
-                <h2 class="text-lg font-extrabold text-white">Eure Gerichte (${state.meals.length})</h2>
-                <p class="text-xs text-[#C7B2AA]">Pausierte Gerichte werden nicht ausgelost</p>
-              </div>
-              <button onclick="openMealModal()" class="px-4 py-2.5 rounded-2xl bg-[#F26419] text-white font-extrabold text-xs shadow-md active:scale-95 transition">
-                + Neues Gericht
-              </button>
-            </div>
-
-            <div class="space-y-3">
-              ${state.meals.map(m => `
-                <div class="bg-[#261B18] rounded-3xl p-4 border ${m.active ? 'border-[#3E2C27]' : 'border-dashed border-gray-700 opacity-50'} transition">
-                  <div class="flex items-start justify-between gap-3">
-                    <div class="flex items-start gap-3">
-                      <div class="w-12 h-12 rounded-2xl bg-[#1A1210] flex items-center justify-center text-2xl shrink-0">
-                        ${m.emoji || '🍲'}
-                      </div>
-                      <div>
-                        <h3 class="font-extrabold text-sm text-white leading-snug">${m.name}</h3>
-                        <p class="text-[11px] text-[#C7B2AA] font-semibold mt-0.5">⏱️ ${m.time} Min.${m.note ? '• ' + m.note : ''}</p>
-                      </div>
-                    </div>
-                    <button onclick="toggleMealActive('${m.id}')" class="px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
-                      m.active ? 'bg-emerald-950 text-emerald-300' : 'bg-gray-800 text-gray-400'
-                    }">
-                      ${m.active ? 'Aktiv' : 'Pausiert'}
-                    </button>
-                  </div>
-
-                  <div class="flex items-center justify-between gap-2 mt-3 pt-3 border-t border-[#382722]">
-                    <button onclick="addMealIngredientsToCart('${m.id}')" class="text-xs font-bold text-[#FF8A5B] bg-[#1A1210] px-3 py-1.5 rounded-xl border border-[#3E2C27]">
-                      🛒 + Einkaufsliste (${(m.ingredients || []).length})
-                    </button>
-                    <div class="flex gap-2">
-                      <button onclick="openMealModal('${m.id}')" class="text-xs font-bold text-[#C7B2AA] bg-[#1A1210] px-3 py-1.5 rounded-xl">Bearbeiten</button>
-                      <button onclick="deleteMeal('${m.id}')" class="text-xs font-bold text-red-400 bg-[#1A1210] px-2.5 py-1.5 rounded-xl">🗑️</button>
-                    </div>
-                  </div>
-                </div>
-              `).join('')}
-            </div>
-          </div>
-        `;
-      }
-
-      else if (currentTab === 'shopping') {
-        const openItems = state.shopping.filter(i => !i.done);
-        const doneItems = state.shopping.filter(i => i.done);
-
-        main.innerHTML = `
-          <div class="space-y-5">
-            <div>
-              <h2 class="text-lg font-extrabold text-white">Live-Einkaufsliste</h2>
-              <p class="text-xs text-[#C7B2AA]">Synchronisiert sofort zwischen ${state.partner1} & ${state.partner2}</p>
-            </div>
-
-            <form onsubmit="addShoppingItem(event)" class="flex gap-2">
-              <input id="shop-input" placeholder="Was braucht ihr noch? (z.B. Milch)" class="flex-1 px-4 py-3.5 rounded-2xl bg-[#261B18] border border-[#3E2C27] text-sm font-semibold text-white focus:outline-none focus:border-[#F26419]" />
-              <button type="submit" class="px-5 py-3.5 rounded-2xl bg-[#F26419] text-white font-extrabold text-sm shadow-md active:scale-95 transition">+</button>
-            </form>
-
-            <div>
-              <span class="block text-[11px] font-bold uppercase tracking-wider text-[#C7B2AA] mb-2">Schnell hinzufügen:</span>
-              <div class="flex gap-1.5 overflow-x-auto no-scrollbar pb-1">
-                ${QUICK_GROCERIES.map(g => `
-                  <button onclick="quickAddGrocery('${g}')" class="px-3 py-1.5 rounded-xl bg-[#2B1E1A] text-[#FF8A5B] text-xs font-bold whitespace-nowrap active:scale-95 transition">
-                    + ${g}
-                  </button>
-                `).join('')}
-              </div>
-            </div>
-
-            <div class="space-y-2">
-              ${openItems.length === 0 ? `
-                <div class="bg-[#261B18] rounded-3xl p-6 text-center text-xs text-[#C7B2AA]">
-                  🎉 Euer Einkaufswagen ist leer!
-                </div>
-              ` : openItems.map(item => `
-                <div onclick="toggleShoppingDone('${item.id}')" class="bg-[#261B18] rounded-2xl p-3.5 border border-[#3E2C27] flex items-center justify-between cursor-pointer active:scale-99 transition">
-                  <div class="flex items-center gap-3">
-                    <div class="w-6 h-6 rounded-lg border-2 border-[#F26419]"></div>
-                    <div>
-                      <p class="text-sm font-bold text-white">${item.text}</p>${item.fromMeal ? `<p class="text-[10px] font-semibold text-[#FF8A5B]">Für: ${item.fromMeal}</p>` : ''}
-                    </div>
-                  </div>
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#1A1210] text-[#C7B2AA]">${item.addedBy || ''}</span>
-                </div>
-              `).join('')}
-            </div>
-
-            ${doneItems.length > 0 ? `
-              <div class="pt-2">
-                <div class="flex items-center justify-between mb-2">
-                  <span class="text-xs font-bold text-[#C7B2AA]">Im Einkaufswagen (${doneItems.length})</span>
-                  <button onclick="clearDoneShopping()" class="text-xs font-bold text-[#FF8A5B]">Alle erledigten löschen</button>
-                </div>
-                <div class="space-y-1.5 opacity-60">
-                  ${doneItems.map(item => `
-                    <div onclick="toggleShoppingDone('${item.id}')" class="bg-[#1A1210] rounded-2xl p-3 flex items-center justify-between cursor-pointer">
-                      <div class="flex items-center gap-3">
-                        <div class="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">✓</div>
-                        <span class="text-sm font-semibold line-through text-[#C7B2AA]">${item.text}</span>
-                      </div>
-                    </div>
-                  `).join('')}
-                </div>
-              </div>
-            ` : ''}
-          </div>
-        `;
-      }
-
-      else if (currentTab === 'couple') {
-        main.innerHTML = `
-          <div class="space-y-5">
-            <div class="bg-[#261B18] rounded-3xl p-5 border border-[#3E2C27]">
-              <h2 class="text-base font-extrabold text-white mb-1">💑 Paar-Synchronisation</h2>
-              <p class="text-xs text-[#C7B2AA] mb-4">Mit demselben Paar-Code synchronisieren sich eure Gerichte und die Einkaufsliste automatisch live!</p>
-              
-              <form onsubmit="saveCoupleSettings(event)" class="space-y-3">
-                <div class="grid grid-cols-2 gap-3">
-                  <div>
-                    <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Dein Name</label>
-                    <input id="input-p1" value="${state.partner1}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-bold text-white" />
-                  </div>
-                  <div>
-                    <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Name Partnerin</label>
-                    <input id="input-p2" value="${state.partner2}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-bold text-white" />
-                  </div>
-                </div>
-                <div>
-                  <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Gemeinsamer Paar-Code</label>
-                  <input id="input-code" value="${state.pairCode}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-extrabold uppercase tracking-wider text-[#FF8A5B]" />
-                </div>
-                <button type="submit" class="w-full py-3 rounded-2xl bg-[#F26419] text-white font-extrabold text-xs shadow-sm">
-                  Speichern & Synchronisieren
-                </button>
-              </form>
-            </div>
-          </div>
-        `;
-      }
-    }
-
-    render();
-    connectLiveSync();
-    fetchLatestFromCloud();
+    // Init
+    applyTheme();
+    document.getElementById('input-p1').value = state.partner1;
+    document.getElementById('input-p2').value = state.partner2;
+    document.getElementById('input-code').value = state.pairCode;
+    setMaxTime(999);
   </script>
 </body>
 </html>
