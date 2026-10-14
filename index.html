@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
   <meta name="theme-color" content="#D94E1F" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
@@ -13,6 +13,7 @@
   <style>
     * { -webkit-tap-highlight-color: transparent; font-family: 'Plus Jakarta Sans', sans-serif; }
     body { background-color: #1A1210; color: #F9EFEA; overscroll-behavior-y: none; }
+    input, select, textarea { font-size: 16px !important; } /* verhindert iOS-Auto-Zoom */
     .no-scrollbar::-webkit-scrollbar { display: none; }
     .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     @keyframes popIn {
@@ -72,7 +73,7 @@
   </div>
 
   <!-- Modal -->
-  <div id="meal-modal" class="fixed inset-0 bg-black/70 backdrop-blur-xs z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4">
+  <div id="meal-modal" class="fixed inset-0 bg-black/70 backdrop-blur-sm z-50 hidden items-end sm:items-center justify-center p-0 sm:p-4">
     <div class="bg-[#261B18] text-white w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 max-h-[90vh] overflow-y-auto animate-pop shadow-2xl border border-[#3E2C27]">
       <div class="flex items-center justify-between mb-4">
         <h2 id="modal-title" class="text-lg font-extrabold">Neues Gericht</h2>
@@ -118,7 +119,7 @@
     // Zeichnet das 3D Foodie & Paar Icon (Design 2: Schüssel, Dampf, 2 schwebende Würfel & Herz) direkt als hochauflösendes PNG
     let GLOBAL_ICON_URL = '';
     (function buildEmbedded3DIcon() {
-      function drawIcon(size) {
+      function drawIcon(size, maskable) {
         const c = document.createElement('canvas');
         c.width = size;
         c.height = size;
@@ -133,15 +134,14 @@
         bgGrad.addColorStop(1, '#8F250C');
         ctx.fillStyle = bgGrad;
         ctx.beginPath();
-        ctx.roundRect(0, 0, 512, 512, 115);
+        ctx.roundRect(0, 0, 512, 512, maskable ? 0 : 115);
         ctx.fill();
 
         // Innerer 3D-Rahmen-Glanz
         ctx.strokeStyle = 'rgba(255, 200, 160, 0.35)';
         ctx.lineWidth = 10;
         ctx.beginPath();
-        ctx.roundRect(18, 18, 476, 476, 98);
-        ctx.stroke();
+        if (!maskable) { ctx.roundRect(18, 18, 476, 476, 98); ctx.stroke(); } else { ctx.translate(256, 256); ctx.scale(0.78, 0.78); ctx.translate(-256, -256); }
 
         // 2. Leuchtendes 3D-Herz oben in der Mitte
         ctx.save();
@@ -268,6 +268,7 @@
 
       const icon192 = drawIcon(192);
       const icon512 = drawIcon(512);
+      const iconMask = drawIcon(512, true);
       GLOBAL_ICON_URL = icon512;
 
       // Im Header sofort setzen
@@ -302,7 +303,8 @@
         theme_color: "#D94E1F",
         icons: [
           { src: icon192, sizes: "192x192", type: "image/png", purpose: "any" },
-          { src: icon512, sizes: "512x512", type: "image/png", purpose: "any maskable" }
+          { src: icon512, sizes: "512x512", type: "image/png", purpose: "any" },
+          { src: iconMask, sizes: "512x512", type: "image/png", purpose: "maskable" }
         ]
       };
       const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
@@ -344,10 +346,114 @@
         { id: 's1', text: 'Basmati-Reis', done: false, addedBy: 'Jonas' },
         { id: 's2', text: 'Tortilla-Wraps', done: false, addedBy: 'Samira' }
       ],
-      history: []
+      history: [],
+      deleted: {},
+      me: 1
     };
 
+    // ---------- Helfer: Escaping, Bereinigung, Merge, Kompression ----------
+    function esc(v) {
+      return String(v ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+    function sid(v) { return String(v ?? '').replace(/[^\w-]/g, '').slice(0, 40); }
+    function str(v, n = 120) { return String(v ?? '').slice(0, n); }
+    function cleanMeal(m) {
+      m = m || {};
+      return {
+        id: sid(m.id), name: str(m.name), emoji: str(m.emoji, 8),
+        time: Math.min(999, Math.max(1, parseInt(m.time, 10) || 25)),
+        tags: (Array.isArray(m.tags) ? m.tags : []).map(t => sid(t)).filter(Boolean).slice(0, 10),
+        ingredients: (Array.isArray(m.ingredients) ? m.ingredients : []).map(i => str(i, 60)).filter(Boolean).slice(0, 30),
+        note: str(m.note, 200), active: m.active !== false, addedBy: str(m.addedBy, 30), ts: +m.ts || 0
+      };
+    }
+    function cleanItem(i) {
+      i = i || {};
+      const o = { id: sid(i.id), text: str(i.text, 80), done: !!i.done, addedBy: str(i.addedBy, 30), ts: +i.ts || 0 };
+      if (i.fromMeal) o.fromMeal = str(i.fromMeal, 120);
+      return o;
+    }
+    function cleanHist(h) {
+      h = h || {};
+      return { id: sid(h.id), name: str(h.name), emoji: str(h.emoji, 8), date: str(h.date, 30) };
+    }
+    function cleanLists(p) {
+      const out = {};
+      if (!p || typeof p !== 'object') return out;
+      if (Array.isArray(p.meals)) out.meals = p.meals.map(cleanMeal).filter(m => m.id && m.name);
+      if (Array.isArray(p.shopping)) out.shopping = p.shopping.map(cleanItem).filter(i => i.id && i.text);
+      if (Array.isArray(p.history)) out.history = p.history.map(cleanHist).filter(h => h.id).slice(0, 15);
+      if (p.deleted && typeof p.deleted === 'object') {
+        out.deleted = {};
+        for (const k in p.deleted) { const id = sid(k); if (id) out.deleted[id] = +p.deleted[k] || 0; }
+      }
+      return out;
+    }
+    function me() { return state.me === 2 ? state.partner2 : state.partner1; }
+
+    // Änderungen pro Eintrag mit Zeitstempel versehen (ts) und Löschungen merken (deleted)
+    let snap = {};
+    function rebuildSnap() {
+      snap = {};
+      [...state.meals, ...state.shopping].forEach(it => { const { ts, ...r } = it; snap[it.id] = JSON.stringify(r); });
+    }
+    function stamp() {
+      const now = Date.now(), cur = {};
+      state.deleted = state.deleted || {};
+      [...state.meals, ...state.shopping].forEach(it => {
+        const { ts, ...r } = it, j = JSON.stringify(r);
+        cur[it.id] = 1;
+        if (snap[it.id] !== j) { it.ts = now; snap[it.id] = j; }
+      });
+      Object.keys(snap).forEach(id => { if (!cur[id]) { state.deleted[id] = now; delete snap[id]; } });
+    }
+
+    // Eingehenden Stand mit dem lokalen zusammenführen (pro Eintrag gewinnt der neuere)
+    function applyIncoming(inc) {
+      const c = cleanLists(inc);
+      const snapshot = () => JSON.stringify([state.meals, state.shopping, state.history, state.deleted]);
+      const before = snapshot();
+      const del = { ...(state.deleted || {}) };
+      for (const k in (c.deleted || {})) del[k] = Math.max(del[k] || 0, c.deleted[k]);
+      const cutoff = Date.now() - 14 * 864e5;
+      for (const k in del) if (del[k] < cutoff) delete del[k];
+      const mergeList = (a, b) => {
+        const m = new Map();
+        [...(a || []), ...(b || [])].forEach(it => {
+          const o = m.get(it.id);
+          if (!o || (it.ts || 0) > (o.ts || 0)) m.set(it.id, it);
+        });
+        return [...m.values()].filter(it => !(del[it.id] && del[it.id] >= (it.ts || 0)));
+      };
+      const hist = new Map();
+      [...(state.history || []), ...(c.history || [])].forEach(h => hist.set(h.id, h));
+      state.meals = mergeList(state.meals, c.meals);
+      state.shopping = mergeList(state.shopping, c.shopping);
+      state.history = [...hist.values()].sort((a, b) => (parseInt(b.id.slice(2), 10) || 0) - (parseInt(a.id.slice(2), 10) || 0)).slice(0, 15);
+      state.deleted = del;
+      if (snapshot() === before) return false;
+      rebuildSnap(); saveLocalState(); render();
+      return true;
+    }
+
+    // ntfy erlaubt ~4 KB pro Nachricht -> gzip + base64, nur geteilte Daten (keine Namen/Code)
+    async function packState() {
+      const json = JSON.stringify({ meals: state.meals, shopping: state.shopping, history: state.history, deleted: state.deleted, updatedAt: state.updatedAt });
+      if (!('CompressionStream' in window)) return json;
+      const buf = await new Response(new Blob([json]).stream().pipeThrough(new CompressionStream('gzip'))).arrayBuffer();
+      let bin = '';
+      new Uint8Array(buf).forEach(b => bin += String.fromCharCode(b));
+      return 'z1:' + btoa(bin);
+    }
+    async function unpackState(msg) {
+      if (!msg.startsWith('z1:')) return JSON.parse(msg);
+      const arr = Uint8Array.from(atob(msg.slice(3)), ch => ch.charCodeAt(0));
+      const text = await new Response(new Blob([arr]).stream().pipeThrough(new DecompressionStream('gzip'))).text();
+      return JSON.parse(text);
+    }
+
     let state = loadLocalState();
+    rebuildSnap();
     let currentTab = 'randomizer';
     let selectedFilter = 'alle';
     let maxTimeFilter = 999;
@@ -356,15 +462,24 @@
     let modalSelectedTags = ['schnell'];
 
     function loadLocalState() {
+      const st = JSON.parse(JSON.stringify(DEFAULT_STATE));
       try {
         const raw = localStorage.getItem('essens_app_state_v1');
-        if (raw) return { ...DEFAULT_STATE, ...JSON.parse(raw) };
+        if (raw) {
+          const p = JSON.parse(raw);
+          Object.assign(st, cleanLists(p));
+          st.partner1 = str(p.partner1, 30) || st.partner1;
+          st.partner2 = str(p.partner2, 30) || st.partner2;
+          st.pairCode = str(p.pairCode, 30) || st.pairCode;
+          st.me = p.me === 2 ? 2 : 1;
+          st.updatedAt = +p.updatedAt || 0;
+        }
       } catch (e) {}
-      return JSON.parse(JSON.stringify(DEFAULT_STATE));
+      return st;
     }
 
     function saveLocalState() {
-      localStorage.setItem('essens_app_state_v1', JSON.stringify(state));
+      try { localStorage.setItem('essens_app_state_v1', JSON.stringify(state)); } catch (e) {}
       updateHeaderAndBadges();
     }
 
@@ -386,57 +501,53 @@
     }
 
     let eventSource = null;
+    function setSyncDot(ok) {
+      const d = document.getElementById('sync-dot');
+      if (!d) return;
+      d.classList.toggle('bg-emerald-400', ok);
+      d.classList.toggle('animate-pulse', ok);
+      d.classList.toggle('bg-red-400', !ok);
+    }
     function connectLiveSync() {
       if (eventSource) { try { eventSource.close(); } catch (e) {} }
-      const topic = getTopicName();
       try {
-        eventSource = new EventSource(`https://ntfy.sh/${topic}/sse?since=latest`);
-        eventSource.onmessage = (event) => {
+        eventSource = new EventSource(`https://ntfy.sh/${getTopicName()}/sse?since=latest`);
+        eventSource.onopen = () => setSyncDot(true);
+        eventSource.onerror = () => setSyncDot(false);
+        eventSource.onmessage = async (event) => {
           try {
             const wrapper = JSON.parse(event.data);
             if (!wrapper.message) return;
-            const incoming = JSON.parse(wrapper.message);
-            if (incoming && incoming.updatedAt && incoming.updatedAt > (state.updatedAt || 0)) {
-              state = { ...state, ...incoming };
-              saveLocalState();
-              render();
-              showToast('🔄 Live aktualisiert!');
-            }
+            if (applyIncoming(await unpackState(wrapper.message))) showToast('🔄 Live aktualisiert!');
           } catch (err) {}
         };
       } catch (e) {}
     }
 
     async function pushCloudState() {
+      stamp();
       state.updatedAt = Date.now();
       saveLocalState();
-      const topic = getTopicName();
       try {
-        await fetch(`https://ntfy.sh/${topic}`, {
-          method: 'POST',
-          body: JSON.stringify(state)
-        });
+        const body = await packState();
+        if (body.length > 4000) { showToast('⚠️ Zu viele Daten für den Sync'); return; }
+        await fetch(`https://ntfy.sh/${getTopicName()}`, { method: 'POST', body });
       } catch (e) {}
     }
 
     async function fetchLatestFromCloud() {
-      const topic = getTopicName();
       try {
-        const res = await fetch(`https://ntfy.sh/${topic}/json?poll=1&since=48h`);
-        const text = await res.text();
-        const lines = text.trim().split('\n').filter(Boolean);
-        if (lines.length > 0) {
-          const lastWrapper = JSON.parse(lines[lines.length - 1]);
-          if (lastWrapper && lastWrapper.message) {
-            const incoming = JSON.parse(lastWrapper.message);
-            if (incoming && incoming.updatedAt && incoming.updatedAt > (state.updatedAt || 0)) {
-              state = { ...state, ...incoming };
-              saveLocalState();
-              render();
-            }
-          }
+        const res = await fetch(`https://ntfy.sh/${getTopicName()}/json?poll=1&since=48h`);
+        const lines = (await res.text()).trim().split('\n').filter(Boolean);
+        let changed = false;
+        for (const line of lines.slice(-5)) {
+          try {
+            const w = JSON.parse(line);
+            if (w.message && applyIncoming(await unpackState(w.message))) changed = true;
+          } catch (e) {}
         }
-      } catch (e) {}
+        return changed;
+      } catch (e) { return false; }
     }
 
     async function manualSync() {
@@ -542,7 +653,7 @@
             text: clean,
             fromMeal: meal.name,
             done: false,
-            addedBy: state.partner1
+            addedBy: me()
           });
           added++;
         }
@@ -618,7 +729,7 @@
         const idx = state.meals.findIndex(m => m.id === id);
         if (idx > -1) state.meals[idx] = { ...state.meals[idx], name, emoji, time, tags: modalSelectedTags, ingredients, note };
       } else {
-        state.meals.unshift({ id: 'm_' + Date.now(), name, emoji, time, tags: modalSelectedTags, ingredients, note, active: true, addedBy: state.partner1 });
+        state.meals.unshift({ id: 'm_' + Date.now(), name, emoji, time, tags: modalSelectedTags, ingredients, note, active: true, addedBy: me() });
       }
       closeMealModal();
       pushCloudState();
@@ -636,6 +747,7 @@
     }
 
     function deleteMeal(mealId) {
+      if (!confirm('Gericht wirklich löschen?')) return;
       state.meals = state.meals.filter(m => m.id !== mealId);
       if (pickedMeal && pickedMeal.id === mealId) pickedMeal = null;
       pushCloudState();
@@ -649,7 +761,7 @@
       if (!input) return;
       const val = input.value.trim();
       if (!val) return;
-      state.shopping.unshift({ id: 's_' + Date.now(), text: val, done: false, addedBy: state.partner1 });
+      state.shopping.unshift({ id: 's_' + Date.now(), text: val, done: false, addedBy: me() });
       input.value = '';
       pushCloudState();
       render();
@@ -661,7 +773,7 @@
         showToast(`${name} steht schon auf der Liste`);
         return;
       }
-      state.shopping.unshift({ id: 's_' + Date.now(), text: name, done: false, addedBy: state.partner1 });
+      state.shopping.unshift({ id: 's_' + Date.now(), text: name, done: false, addedBy: me() });
       pushCloudState();
       showToast(`+ ${name}`);
       render();
@@ -683,15 +795,17 @@
       render();
     }
 
-    function saveCoupleSettings(e) {
+    async function saveCoupleSettings(e) {
       e.preventDefault();
-      state.partner1 = document.getElementById('input-p1').value.trim() || 'Jonas';
-      state.partner2 = document.getElementById('input-p2').value.trim() || 'Samira';
+      state.partner1 = str(document.getElementById('input-p1').value.trim(), 30) || 'Jonas';
+      state.partner2 = str(document.getElementById('input-p2').value.trim(), 30) || 'Samira';
+      state.me = document.getElementById('input-me').value === '2' ? 2 : 1;
       state.pairCode = (document.getElementById('input-code').value.trim() || 'JS27').toUpperCase();
       saveLocalState();
       connectLiveSync();
-      fetchLatestFromCloud();
-      pushCloudState();
+      showToast('Synchronisiere...');
+      await fetchLatestFromCloud();   // erst Cloud-Stand holen und mergen ...
+      await pushCloudState();         // ... dann den gemergten Stand zurückschicken
       showToast('Paar-Code & Namen gespeichert ✓');
       render();
     }
@@ -726,7 +840,7 @@
             <div class="flex gap-2">
               ${[
                 { label: 'Alle Zeiten', val: 999 },
-                { label: '⚡ Unter 20 Min.', val: 20 },
+                { label: '⚡ Bis 20 Min.', val: 20 },
                 { label: '⏱️ Bis 30 Min.', val: 30 }
               ].map(t => `
                 <button onclick="maxTimeFilter=${t.val}; render();" class="flex-1 py-2 rounded-xl text-xs font-bold border transition ${ maxTimeFilter === t.val ? 'bg-[#3D2218] border-[#F26419] text-[#FF8A5B]' : 'bg-[#261B18] border-transparent text-[#C7B2AA]' }">${t.label}</button>
@@ -736,23 +850,23 @@
             <div class="bg-gradient-to-br from-[#2E1E19] via-[#261A16] to-[#382119] rounded-3xl p-6 border border-[#4A2E24] shadow-lg text-center relative overflow-hidden">
               ${pickedMeal ? `
                 <div class="animate-pop">
-                  <div class="text-6xl mb-3">${pickedMeal.emoji || '🍲'}</div>
+                  <div class="text-6xl mb-3">${esc(pickedMeal.emoji || '🍲')}</div>
                   <span class="inline-block px-3 py-1 rounded-full bg-[#1A1210] text-[#FF8A5B] text-[11px] font-extrabold mb-2">
-                    ⏱️ ca. ${pickedMeal.time} Min.
+                    ⏱️ ca. ${esc(pickedMeal.time)} Min.
                   </span>
-                  <h2 class="text-xl font-extrabold text-white leading-snug mb-2">${pickedMeal.name}</h2>${pickedMeal.note ? `<p class="text-xs text-[#C7B2AA] mb-4 bg-[#1A1210]/70 rounded-2xl px-3 py-2">${pickedMeal.note}</p>` : ''}
+                  <h2 class="text-xl font-extrabold text-white leading-snug mb-2">${esc(pickedMeal.name)}</h2>${pickedMeal.note ? `<p class="text-xs text-[#C7B2AA] mb-4 bg-[#1A1210]/70 rounded-2xl px-3 py-2">${esc(pickedMeal.note)}</p>` : ''}
 
                   ${(pickedMeal.ingredients && pickedMeal.ingredients.length > 0) ? `
                     <div class="flex flex-wrap justify-center gap-1.5 mb-5">
-                      ${pickedMeal.ingredients.map(i => `<span class="px-2.5 py-1 rounded-lg bg-[#1A1210] text-[11px] font-semibold text-[#E8D7D0]">${i}</span>`).join('')}
+                      ${pickedMeal.ingredients.map(i => `<span class="px-2.5 py-1 rounded-lg bg-[#1A1210] text-[11px] font-semibold text-[#E8D7D0]">${esc(i)}</span>`).join('')}
                     </div>
                   ` : ''}
 
                   <div class="flex flex-col gap-2.5 mt-4">
-                    <button onclick="confirmMealToday('${pickedMeal.id}')" class="w-full py-3.5 rounded-2xl bg-emerald-600 text-white font-extrabold text-sm shadow-md active:scale-98 transition">
+                    <button onclick="confirmMealToday('${pickedMeal.id}')" class="w-full py-3.5 rounded-2xl bg-emerald-600 text-white font-extrabold text-sm shadow-md active:scale-[.98] transition">
                       ✅ Heute essen wir das!
                     </button>
-                    <button onclick="addMealIngredientsToCart('${pickedMeal.id}')" class="w-full py-3 rounded-2xl bg-[#1A1210] text-[#FF8A5B] border border-[#4A2E24] font-bold text-xs active:scale-98 transition">
+                    <button onclick="addMealIngredientsToCart('${pickedMeal.id}')" class="w-full py-3 rounded-2xl bg-[#1A1210] text-[#FF8A5B] border border-[#4A2E24] font-bold text-xs active:scale-[.98] transition">
                       🛒 Zutaten (${(pickedMeal.ingredients || []).length}) auf die Einkaufsliste
                     </button>
                   </div>
@@ -793,11 +907,11 @@
                   <div class="flex items-start justify-between gap-3">
                     <div class="flex items-start gap-3">
                       <div class="w-12 h-12 rounded-2xl bg-[#1A1210] flex items-center justify-center text-2xl shrink-0">
-                        ${m.emoji || '🍲'}
+                        ${esc(m.emoji || '🍲')}
                       </div>
                       <div>
-                        <h3 class="font-extrabold text-sm text-white leading-snug">${m.name}</h3>
-                        <p class="text-[11px] text-[#C7B2AA] font-semibold mt-0.5">⏱️ ${m.time} Min.${m.note ? '• ' + m.note : ''}</p>
+                        <h3 class="font-extrabold text-sm text-white leading-snug">${esc(m.name)}</h3>
+                        <p class="text-[11px] text-[#C7B2AA] font-semibold mt-0.5">⏱️ ${esc(m.time)} Min.${m.note ? '• ' + esc(m.note) : ''}</p>
                       </div>
                     </div>
                     <button onclick="toggleMealActive('${m.id}')" class="px-2.5 py-1 rounded-full text-[10px] font-extrabold ${
@@ -831,7 +945,7 @@
           <div class="space-y-5">
             <div>
               <h2 class="text-lg font-extrabold text-white">Live-Einkaufsliste</h2>
-              <p class="text-xs text-[#C7B2AA]">Synchronisiert sofort zwischen ${state.partner1} & ${state.partner2}</p>
+              <p class="text-xs text-[#C7B2AA]">Synchronisiert sofort zwischen ${esc(state.partner1)} & ${esc(state.partner2)}</p>
             </div>
 
             <form onsubmit="addShoppingItem(event)" class="flex gap-2">
@@ -856,14 +970,14 @@
                   🎉 Euer Einkaufswagen ist leer!
                 </div>
               ` : openItems.map(item => `
-                <div onclick="toggleShoppingDone('${item.id}')" class="bg-[#261B18] rounded-2xl p-3.5 border border-[#3E2C27] flex items-center justify-between cursor-pointer active:scale-99 transition">
+                <div onclick="toggleShoppingDone('${item.id}')" class="bg-[#261B18] rounded-2xl p-3.5 border border-[#3E2C27] flex items-center justify-between cursor-pointer active:scale-[.99] transition">
                   <div class="flex items-center gap-3">
                     <div class="w-6 h-6 rounded-lg border-2 border-[#F26419]"></div>
                     <div>
-                      <p class="text-sm font-bold text-white">${item.text}</p>${item.fromMeal ? `<p class="text-[10px] font-semibold text-[#FF8A5B]">Für: ${item.fromMeal}</p>` : ''}
+                      <p class="text-sm font-bold text-white">${esc(item.text)}</p>${item.fromMeal ? `<p class="text-[10px] font-semibold text-[#FF8A5B]">Für: ${esc(item.fromMeal)}</p>` : ''}
                     </div>
                   </div>
-                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#1A1210] text-[#C7B2AA]">${item.addedBy || ''}</span>
+                  <span class="text-[10px] font-bold px-2 py-0.5 rounded-md bg-[#1A1210] text-[#C7B2AA]">${esc(item.addedBy || '')}</span>
                 </div>
               `).join('')}
             </div>
@@ -879,7 +993,7 @@
                     <div onclick="toggleShoppingDone('${item.id}')" class="bg-[#1A1210] rounded-2xl p-3 flex items-center justify-between cursor-pointer">
                       <div class="flex items-center gap-3">
                         <div class="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center text-xs font-bold">✓</div>
-                        <span class="text-sm font-semibold line-through text-[#C7B2AA]">${item.text}</span>
+                        <span class="text-sm font-semibold line-through text-[#C7B2AA]">${esc(item.text)}</span>
                       </div>
                     </div>
                   `).join('')}
@@ -901,16 +1015,23 @@
                 <div class="grid grid-cols-2 gap-3">
                   <div>
                     <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Dein Name</label>
-                    <input id="input-p1" value="${state.partner1}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-bold text-white" />
+                    <input id="input-p1" value="${esc(state.partner1)}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-bold text-white" />
                   </div>
                   <div>
                     <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Name Partnerin</label>
-                    <input id="input-p2" value="${state.partner2}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-bold text-white" />
+                    <input id="input-p2" value="${esc(state.partner2)}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-bold text-white" />
                   </div>
                 </div>
                 <div>
+                  <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Ich bin (nur auf diesem Gerät)</label>
+                  <select id="input-me" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-bold text-white">
+                    <option value="1" ${state.me !== 2 ? 'selected' : ''}>${esc(state.partner1)}</option>
+                    <option value="2" ${state.me === 2 ? 'selected' : ''}>${esc(state.partner2)}</option>
+                  </select>
+                </div>
+                <div>
                   <label class="block text-xs font-bold text-[#C7B2AA] mb-1">Gemeinsamer Paar-Code</label>
-                  <input id="input-code" value="${state.pairCode}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-extrabold uppercase tracking-wider text-[#FF8A5B]" />
+                  <input id="input-code" value="${esc(state.pairCode)}" class="w-full px-3.5 py-2.5 rounded-2xl bg-[#1A1210] border border-[#3E2C27] text-sm font-extrabold uppercase tracking-wider text-[#FF8A5B]" />
                 </div>
                 <button type="submit" class="w-full py-3 rounded-2xl bg-[#F26419] text-white font-extrabold text-xs shadow-sm">
                   Speichern & Synchronisieren
@@ -925,6 +1046,9 @@
     render();
     connectLiveSync();
     fetchLatestFromCloud();
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { connectLiveSync(); fetchLatestFromCloud(); }
+    });
   </script>
 </body>
 </html>
