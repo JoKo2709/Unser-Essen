@@ -359,7 +359,8 @@
       ],
       history: [],
       deleted: {},
-      me: 1
+      me: 1,
+      cooldownDays: 5
     };
 
     // ---------- Helfer: Escaping, Bereinigung, Merge, Kompression ----------
@@ -386,7 +387,7 @@
     }
     function cleanHist(h) {
       h = h || {};
-      return { id: sid(h.id), name: str(h.name), emoji: str(h.emoji, 8), date: str(h.date, 30) };
+      return { id: sid(h.id), mealId: sid(h.mealId), name: str(h.name), emoji: str(h.emoji, 8), date: str(h.date, 30) };
     }
     function cleanLists(p) {
       const out = {};
@@ -437,7 +438,7 @@
         return [...m.values()].filter(it => !(del[it.id] && del[it.id] >= (it.ts || 0)));
       };
       const hist = new Map();
-      [...(state.history || []), ...(c.history || [])].forEach(h => hist.set(h.id, h));
+      [...(state.history || []), ...(c.history || [])].filter(h => !del[h.id]).forEach(h => hist.set(h.id, h));
       state.meals = mergeList(state.meals, c.meals);
       state.shopping = mergeList(state.shopping, c.shopping);
       state.history = [...hist.values()].sort((a, b) => (parseInt(b.id.slice(2), 10) || 0) - (parseInt(a.id.slice(2), 10) || 0)).slice(0, 15);
@@ -463,6 +464,50 @@
       return JSON.parse(text);
     }
 
+    // ---------- Verlauf & Wiederholungssperre ----------
+    const COOLDOWN_OPTIONS = [0, 3, 5, 7, 14];
+    function histTime(h) { return parseInt(String(h.id).slice(2), 10) || 0; }
+    function isOnCooldown(m) {
+      const days = state.cooldownDays || 0;
+      if (!days) return false;
+      const since = Date.now() - days * 864e5;
+      return (state.history || []).some(h => histTime(h) >= since && (h.mealId ? h.mealId === m.id : h.name === m.name));
+    }
+    function setCooldown(d) { state.cooldownDays = d; saveLocalState(); render(); }
+    function removeHistory(id) {
+      state.history = (state.history || []).filter(h => h.id !== id);
+      state.deleted = state.deleted || {};
+      state.deleted[id] = Date.now();
+      pushCloudState();
+      render();
+    }
+    function historyCardHtml() {
+      const days = state.cooldownDays || 0;
+      const blocked = state.meals.filter(m => m.active && isOnCooldown(m)).length;
+      const list = (state.history || []).slice(0, 5);
+      return `
+        <div class="bg-[#261B18] rounded-3xl p-5 border border-[#3E2C27] mt-5">
+          <h3 class="text-sm font-extrabold text-white mb-1">🕘 Zuletzt gegessen</h3>
+          ${list.length === 0 ? `<p class="text-xs text-[#C7B2AA]">Noch nichts – tippe beim Auslosen auf „Heute essen wir das!“.</p>` : `<div class="space-y-1.5 mt-2">${list.map(h => `
+            <div class="flex items-center justify-between gap-2 bg-[#1A1210] rounded-2xl px-3 py-2">
+              <span class="text-sm font-semibold text-white truncate">${esc(h.emoji || '🍽️')} ${esc(h.name)}</span>
+              <span class="flex items-center gap-2 shrink-0">
+                <span class="text-[11px] font-bold text-[#C7B2AA]">${esc(h.date)}</span>
+                <button onclick="removeHistory('${h.id}')" class="text-[#C7B2AA] text-xs font-bold">✕</button>
+              </span>
+            </div>`).join('')}</div>`}
+          <div class="mt-4 pt-4 border-t border-[#382722]">
+            <p class="text-xs font-bold text-[#C7B2AA] mb-2">🔒 Wiederholungssperre</p>
+            <div class="flex gap-2">${COOLDOWN_OPTIONS.map(d => `<button onclick="setCooldown(${d})" class="flex-1 py-2 rounded-xl text-xs font-bold border transition ${
+              days === d ? 'bg-[#3D2218] border-[#F26419] text-[#FF8A5B]' : 'bg-[#1A1210] border-transparent text-[#C7B2AA]'
+            }">${d === 0 ? 'Aus' : d + ' Tage'}</button>`).join('')}</div>
+            <p class="text-[11px] text-[#C7B2AA] mt-2">${days
+              ? `Gerichte der letzten ${days} Tage werden nicht ausgelost${blocked ? ' (' + blocked + ' gerade gesperrt)' : ''}. Gilt nur auf diesem Gerät.`
+              : 'Aus: jedes Gericht kann jederzeit wieder kommen.'}</p>
+          </div>
+        </div>`;
+    }
+
     let state = loadLocalState();
     rebuildSnap();
     let currentTab = 'randomizer';
@@ -483,6 +528,7 @@
           st.partner2 = str(p.partner2, 30) || st.partner2;
           st.pairCode = str(p.pairCode, 30) || st.pairCode;
           st.me = p.me === 2 ? 2 : 1;
+          st.cooldownDays = COOLDOWN_OPTIONS.includes(+p.cooldownDays) ? +p.cooldownDays : 5;
           st.updatedAt = +p.updatedAt || 0;
         }
       } catch (e) {}
@@ -609,6 +655,7 @@
         if (!m.active) return false;
         if (selectedFilter !== 'alle' && !(m.tags || []).includes(selectedFilter)) return false;
         if (m.time > maxTimeFilter) return false;
+        if (isOnCooldown(m)) return false;
         return true;
       });
     }
@@ -616,7 +663,7 @@
     function spinRandomizer() {
       const pool = getFilteredMeals();
       if (pool.length === 0) {
-        showToast('Keine passenden Gerichte im Filter!');
+        showToast(state.cooldownDays ? 'Keine Gerichte übrig – Filter oder Wiederholungssperre anpassen' : 'Keine passenden Gerichte im Filter!');
         return;
       }
       if (isRolling) return;
@@ -640,7 +687,7 @@
       const meal = state.meals.find(m => m.id === mealId);
       if (!meal) return;
       const dateStr = new Date().toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit' });
-      state.history.unshift({ id: 'h_' + Date.now(), name: meal.name, emoji: meal.emoji, date: dateStr });
+      state.history.unshift({ id: 'h_' + Date.now(), mealId: meal.id, name: meal.name, emoji: meal.emoji, date: dateStr });
       state.history = state.history.slice(0, 15);
       pushCloudState();
       showToast(`🎉 "${meal.name}" für heute ausgewählt!`);
@@ -895,6 +942,7 @@
                 <span>${pickedMeal ? 'Noch mal würfeln!' : 'Jetzt Gericht auslosen!'}</span>
               </button>
             </div>
+            ${historyCardHtml()}
           </div>
         `;
       }
