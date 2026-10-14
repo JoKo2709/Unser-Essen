@@ -1968,5 +1968,61 @@
     setInterval(attachAddons, 400);
   })();
   </script>
+  <!-- === MODULE: Display aktiv halten bei geöffnetem Rezept (WakeLock) === -->
+<script>
+(() => {
+  let wakeLockSentinel = null;
+
+  // WakeLock anfordern
+  async function requestWakeLock() {
+    if ('wakeLock' in navigator) {
+      try {
+        wakeLockSentinel = await navigator.wakeLock.request('screen');
+        wakeLockSentinel.addEventListener('release', () => {
+          wakeLockSentinel = null;
+        });
+      } catch (err) {
+        console.warn('WakeLock konnte nicht aktiviert werden:', err);
+      }
+    }
+  }
+
+  // WakeLock freigeben
+  function releaseWakeLock() {
+    if (wakeLockSentinel !== null) {
+      wakeLockSentinel.release().then(() => {
+        wakeLockSentinel = null;
+      });
+    }
+  }
+
+  // Beobachten, ob das Rezept-Modal sichtbar ist
+  function initModalWatcher() {
+    const modal = document.getElementById('ueModalRoot') || document.getElementById('ueGenericModal');
+    if (!modal) return setTimeout(initModalWatcher, 400);
+
+    const observer = new MutationObserver(() => {
+      const isVisible = window.getComputedStyle(modal).display !== 'none';
+      if (isVisible) {
+        requestWakeLock();
+      } else {
+        releaseWakeLock();
+      }
+    });
+
+    observer.observe(modal, { attributes: true, attributeFilter: ['style', 'class'] });
+
+    // Re-Aktivieren falls der Tab/Browser kurz in den Hintergrund gewechselt wurde
+    document.addEventListener('visibilitychange', () => {
+      const isVisible = window.getComputedStyle(modal).display !== 'none';
+      if (document.visibilityState === 'visible' && isVisible) {
+        requestWakeLock();
+      }
+    });
+  }
+
+  initModalWatcher();
+})();
+</script>
 </body>
 </html>
