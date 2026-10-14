@@ -2024,5 +2024,193 @@
   initModalWatcher();
 })();
 </script>
+  <!-- === MODULE: ntfy-Sync, Kochmodus-Schritte & Budget-Rechner === -->
+<script>
+(() => {
+  const NTFY_TOPIC = 'JS27'; // Euer ntfy-Topic
+  const KEY_RECIPES = 'unser_essen_recipes_v1';
+  let isReceivingSync = false;
+
+  // 1. Styles für Kochmodus und Budget-Badge
+  const style = document.createElement('style');
+  style.textContent = `
+    .ue-step-mode {
+      background: #09090b; border: 1px solid #3f3f46; border-radius: 12px;
+      padding: 16px; margin-top: 10px; text-align: center;
+    }
+    .ue-step-text {
+      font-size: 19px; font-weight: 600; line-height: 1.5; color: #fafafa;
+      min-height: 70px; display: flex; align-items: center; justify-content: center;
+    }
+    .ue-step-nav { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; gap: 8px; }
+    .ue-step-btn { background: #27272a; color: #fff; border: 1px solid #3f3f46; padding: 8px 14px; border-radius: 8px; font-weight: 700; cursor: pointer; }
+    .ue-budget-select { background: #09090b; color: #f59e0b; border: 1px solid #44403c; border-radius: 8px; padding: 6px; font-weight: 700; width: 100%; margin-top: 4px; }
+    .ue-budget-banner { text-align: center; font-size: 12px; color: #a1a1aa; margin: 6px 0 10px 0; font-weight: 600; }
+  `;
+  document.head.appendChild(style);
+
+  const getRecipes = () => JSON.parse(localStorage.getItem(KEY_RECIPES) || '{}');
+  const saveRecipes = (data, triggerSync = true) => {
+    localStorage.setItem(KEY_RECIPES, JSON.stringify(data));
+    if (triggerSync && !isReceivingSync) broadcastSync(data);
+  };
+
+  // 2. ntfy Synchronisation
+  async function broadcastSync(data) {
+    try {
+      await fetch(`https://ntfy.sh/${NTFY_TOPIC}`, {
+        method: 'POST',
+        headers: { 'Title': 'Rezept-Update' },
+        body: JSON.stringify({ type: 'UE_RECIPES_SYNC', payload: data })
+      });
+    } catch (e) {
+      console.warn('ntfy Sync Fehler:', e);
+    }
+  }
+
+  function startNtfyListener() {
+    const eventSource = new EventSource(`https://ntfy.sh/${NTFY_TOPIC}/sse`);
+    eventSource.onmessage = (event) => {
+      try {
+        const msg = JSON.parse(event.data);
+        if (msg.event === 'message') {
+          const parsed = JSON.parse(msg.message);
+          if (parsed.type === 'UE_RECIPES_SYNC' && parsed.payload) {
+            isReceivingSync = true;
+            localStorage.setItem(KEY_RECIPES, JSON.stringify(parsed.payload));
+            isReceivingSync = false;
+            updateBudgetSummary();
+          }
+        }
+      } catch (e) {}
+    };
+  }
+
+  // 3. Schritt-für-Schritt Kochansicht Logik
+  window.ueRenderSteps = function(instructions) {
+    const steps = instructions.split(/\n+/).map(s => s.trim().replace(/^[-*•\d.]\s*/, '')).filter(Boolean);
+    if (!steps.length) return '<p style="color:#71717a; font-size:12px;">Keine Schritte hinterlegt.</p>';
+
+    let cur = 0;
+    setTimeout(() => {
+      const textEl = document.getElementById('ueCurStepText');
+      const counterEl = document.getElementById('ueStepCounter');
+      const prevBtn = document.getElementById('uePrevStep');
+      const nextBtn = document.getElementById('ueNextStep');
+
+      const render = () => {
+        textEl.innerText = steps[cur];
+        counterEl.innerText = `Schritt ${cur + 1} von ${steps.length}`;
+        prevBtn.disabled = cur === 0;
+        nextBtn.disabled = cur === steps.length - 1;
+        prevBtn.style.opacity = cur === 0 ? '0.4' : '1';
+        nextBtn.style.opacity = cur === steps.length - 1 ? '0.4' : '1';
+      };
+
+      prevBtn.onclick = () => { if (cur > 0) { cur--; render(); } };
+      nextBtn.onclick = () => { if (cur < steps.length - 1) { cur++; render(); } };
+      render();
+    }, 50);
+
+    return `
+      <div class="ue-step-mode">
+        <div id="ueStepCounter" style="font-size:11px; color:#ea580c; font-weight:700; text-transform:uppercase;"></div>
+        <div id="ueCurStepText" class="ue-step-text"></div>
+        <div class="ue-step-nav">
+          <button id="uePrevStep" class="ue-step-btn">◀ Zurück</button>
+          <button id="ueNextStep" class="ue-step-btn" style="background:#ea580c; border:none;">Weiter ▶</button>
+        </div>
+      </div>
+    `;
+  };
+
+  // 4. Budget-Berechnung für den Wochenplan
+  function updateBudgetSummary() {
+    const selects = document.querySelectorAll('select');
+    if (!selects.length) return;
+
+    const recipes = getRecipes();
+    let minTotal = 0;
+    let maxTotal = 0;
+    let countedMeals = 0;
+
+    selects.forEach(s => {
+      const meal = s.options[s.selectedIndex]?.text?.trim();
+      if (meal && !meal.includes('noch nichts') && recipes[meal]) {
+        const b = recipes[meal].budget || '€€';
+        countedMeals++;
+        if (b === '€') { minTotal += 1.5; maxTotal += 3.0; }
+        else if (b === '€€') { minTotal += 3.0; maxTotal += 6.0; }
+        else if (b === '€€€') { minTotal += 6.0; maxTotal += 10.0; }
+      }
+    });
+
+    let banner = document.getElementById('ueBudgetBanner');
+    if (!banner) {
+      banner = document.createElement('div');
+      banner.id = 'ueBudgetBanner';
+      banner.className = 'ue-budget-banner';
+      const wTitle = Array.from(document.querySelectorAll('h1, h2, h3, div')).find(el => el.innerText?.trim() === 'Wochenplan');
+      if (wTitle) wTitle.parentNode.insertBefore(banner, wTitle.nextSibling);
+    }
+
+    if (countedMeals > 0) {
+      banner.innerText = `💰 Geschätztes Budget: ca. ${minTotal.toFixed(0)}–${maxTotal.toFixed(0)} € (${countedMeals} Gerichte)`;
+    } else {
+      banner.innerText = '';
+    }
+  }
+
+  // 5. Integration in bestehendes Modal erweitern
+  const originalSave = window.ueSaveRecipeHook;
+  function patchModalUI() {
+    const modalContent = document.getElementById('ueMContent');
+    const mealTitle = document.getElementById('ueMTitle')?.innerText;
+    if (!modalContent || !mealTitle || modalContent.querySelector('#ueBudgetSelect')) return;
+
+    const recipes = getRecipes();
+    const cur = recipes[mealTitle] || { ing: '', inst: '', budget: '€€' };
+
+    // Budget-Dropdown einfügen
+    const bDiv = document.createElement('div');
+    bDiv.innerHTML = `
+      <label style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase; margin-top:10px; display:block;">💰 Preiskategorie</label>
+      <select id="ueBudgetSelect" class="ue-budget-select">
+        <option value="€" ${cur.budget === '€' ? 'selected' : ''}>€ (Günstig: &lt; 3 €)</option>
+        <option value="€€" ${(!cur.budget || cur.budget === '€€') ? 'selected' : ''}>€€ (Mittel: 3–6 €)</option>
+        <option value="€€€" ${cur.budget === '€€€' ? 'selected' : ''}>€€€ (Premium: &gt; 6 €)</option>
+      </select>
+
+      <label style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase; margin-top:14px; display:block;">👨‍🍳 Koch-Schritte (Große Ansicht)</label>
+      ${window.ueRenderSteps(cur.inst || '')}
+    `;
+    modalContent.insertBefore(bDiv, document.getElementById('ueSaveRecipe'));
+
+    // Speichern patchen
+    const saveBtn = document.getElementById('ueSaveRecipe');
+    if (saveBtn && !saveBtn.dataset.patched) {
+      saveBtn.dataset.patched = 'true';
+      const oldClick = saveBtn.onclick;
+      saveBtn.onclick = (e) => {
+        if (oldClick) oldClick(e);
+        const updated = getRecipes();
+        const bVal = document.getElementById('ueBudgetSelect')?.value || '€€';
+        if (updated[mealTitle]) {
+          updated[mealTitle].budget = bVal;
+          saveRecipes(updated, true);
+        }
+        updateBudgetSummary();
+      };
+    }
+  }
+
+  setInterval(() => {
+    patchModalUI();
+    updateBudgetSummary();
+  }, 600);
+
+  startNtfyListener();
+})();
+</script>
 </body>
 </html>
