@@ -1601,170 +1601,241 @@
   // Start initialisieren & MutationObserver falls Tage dynamisch geladen werden
   setTimeout(attachFeedbackToDays, 300);
 })();
-</script>
-  <!-- === MODULE: Heute-Fokus, Rezept & Zutaten === -->
-<script>
-(() => {
-  const STORAGE_KEY_RECIPES = 'unser_essen_recipes_v1';
+<!-- === MODULE: Heute-Fokus (Auto-Sync) + Archiv unten === -->
+  <script>
+  (() => {
+    const STORAGE_KEY_RECIPES = 'unser_essen_recipes_v1';
+    const STORAGE_KEY_ARCHIVE = 'unser_essen_archive_v1';
+    const weekDayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
 
-  // 1. Styles für den Heute-Banner und das Rezept-Modal
-  const style = document.createElement('style');
-  style.textContent = `
-    .ue-today-card {
-      background: linear-gradient(135deg, #1e293b, #0f172a);
-      color: #f8fafc;
-      border-radius: 14px;
-      padding: 16px 20px;
-      margin: 16px auto;
-      max-width: 600px;
-      box-shadow: 0 10px 20px rgba(0,0,0,0.15);
-      border: 1px solid rgba(255,255,255,0.08);
-      font-family: inherit;
-    }
-    .ue-today-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
-    .ue-today-badge { background: #38bdf8; color: #0f172a; font-size: 11px; font-weight: 700; text-transform: uppercase; padding: 3px 8px; border-radius: 20px; letter-spacing: 0.5px; }
-    .ue-today-title { font-size: 18px; font-weight: 700; margin: 4px 0 12px 0; color: #fff; }
-    .ue-today-actions { display: flex; gap: 8px; }
-    .ue-btn-today {
-      background: #3b82f6; color: white; border: none; padding: 7px 14px; border-radius: 8px; font-size: 12px; font-weight: 600; cursor: pointer; transition: all 0.2s;
-    }
-    .ue-btn-today:hover { background: #2563eb; }
-    .ue-btn-today-secondary { background: rgba(255,255,255,0.12); color: #f8fafc; }
-    .ue-btn-today-secondary:hover { background: rgba(255,255,255,0.2); }
-
-    /* Modal Styling */
-    .ue-recipe-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.65); z-index: 10000; align-items: center; justify-content: center; padding: 16px; font-family: inherit; }
-    .ue-recipe-box { background: #fff; color: #1e293b; border-radius: 14px; max-width: 480px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 20px; box-shadow: 0 20px 30px rgba(0,0,0,0.25); }
-    .ue-recipe-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; margin-bottom: 14px; }
-    .ue-recipe-label { display: block; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; margin-top: 12px; margin-bottom: 4px; }
-    .ue-recipe-textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 8px; padding: 8px; font-size: 13px; font-family: inherit; box-sizing: border-box; min-height: 80px; resize: vertical; }
-  `;
-  document.head.appendChild(style);
-
-  // 2. Banner-Element erstellen
-  const banner = document.createElement('div');
-  banner.className = 'ue-today-card';
-  banner.id = 'ueTodayCard';
-  banner.innerHTML = `
-    <div class="ue-today-header">
-      <span class="ue-today-badge">Heute auf dem Teller</span>
-      <span id="ueTodayDate" style="font-size: 12px; opacity: 0.8;"></span>
-    </div>
-    <div class="ue-today-title" id="ueTodayMeal">Wird geladen...</div>
-    <div class="ue-today-actions">
-      <button class="ue-btn-today" id="ueBtnViewRecipe">📖 Rezept & Zutaten</button>
-      <button class="ue-btn-today ue-btn-today-secondary" id="ueBtnEditRecipe">✏️ Rezept bearbeiten</button>
-    </div>
-  `;
-
-  // 3. Modal für Rezept / Zutaten
-  const modal = document.createElement('div');
-  modal.className = 'ue-recipe-modal';
-  modal.id = 'ueRecipeModal';
-  modal.innerHTML = `
-    <div class="ue-recipe-box">
-      <div class="ue-recipe-header">
-        <h3 id="ueModalDishTitle" style="margin:0; font-size:16px;">Rezeptdetails</h3>
-        <button id="ueCloseRecipeModal" style="background:none; border:none; font-size:18px; cursor:pointer;">✕</button>
-      </div>
-      
-      <!-- Lese-Ansicht -->
-      <div id="ueViewMode">
-        <span class="ue-recipe-label">🛒 Zutaten</span>
-        <div id="ueViewIngredients" style="font-size:13px; line-height:1.5; white-space:pre-wrap; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #f1f5f9;">Keine Zutaten hinterlegt.</div>
-
-        <span class="ue-recipe-label" style="margin-top:14px;">👩‍🍳 Zubereitung</span>
-        <div id="ueViewInstructions" style="font-size:13px; line-height:1.5; white-space:pre-wrap; background:#f8fafc; padding:10px; border-radius:8px; border:1px solid #f1f5f9;">Keine Zubereitung hinterlegt.</div>
-      </div>
-
-      <!-- Bearbeiten-Ansicht -->
-      <div id="ueEditMode" style="display:none;">
-        <label class="ue-recipe-label">🛒 Zutaten (eine pro Zeile)</label>
-        <textarea id="ueInputIngredients" class="ue-recipe-textarea" placeholder="z. B. 400g Hähnchenbrust&#10;1 Paprika&#10;200g Reis"></textarea>
-
-        <label class="ue-recipe-label">👩‍🍳 Zubereitung / Notiz</label>
-        <textarea id="ueInputInstructions" class="ue-recipe-textarea" placeholder="z. B. Paprika anbraten, Fleisch dazu..."></textarea>
-
-        <button class="ue-btn-today" id="ueBtnSaveRecipe" style="width:100%; margin-top:14px; padding:10px;">💾 Speichern</button>
-      </div>
-    </div>
-  `;
-  document.body.appendChild(modal);
-
-  // Einhängen des Banners oben
-  const mountPoint = document.querySelector('main') || document.querySelector('.container') || document.body;
-  mountPoint.prepend(banner);
-
-  const getRecipes = () => JSON.parse(localStorage.getItem(STORAGE_KEY_RECIPES) || '{}');
-  const saveRecipes = (data) => localStorage.setItem(STORAGE_KEY_RECIPES, JSON.stringify(data));
-
-  const weekDayNames = ['Sonntag', 'Montag', 'Dienstag', 'Mittwoch', 'Donnerstag', 'Freitag', 'Samstag'];
-
-  function updateTodayView() {
-    const now = new Date();
-    const todayName = weekDayNames[now.getDay()];
-    document.getElementById('ueTodayDate').innerText = `${todayName}, ${now.toLocaleDateString('de-DE')}`;
-
-    // Passende Tageskarte im DOM finden
-    const dayElements = document.querySelectorAll('[data-day], .day-card, .tag-karte');
-    let currentMeal = '';
-
-    dayElements.forEach(el => {
-      const text = el.innerText || '';
-      if (text.includes(todayName)) {
-        currentMeal = el.querySelector('.meal-title, input, select, .dish-name')?.value ||
-                      el.querySelector('.meal-title, .dish-name')?.innerText || '';
+    // 1. CSS Injection
+    const style = document.createElement('style');
+    style.textContent = `
+      .ue-today-card {
+        background: #18181b;
+        color: #f4f4f5;
+        border-radius: 18px;
+        padding: 16px;
+        margin: 14px;
+        border: 1px solid rgba(255,255,255,0.08);
+        box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+        font-family: inherit;
       }
-    });
+      .ue-today-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+      .ue-today-badge { background: #38bdf8; color: #09090b; font-size: 11px; font-weight: 800; text-transform: uppercase; padding: 4px 9px; border-radius: 20px; letter-spacing: 0.5px; }
+      .ue-today-title { font-size: 18px; font-weight: 700; margin: 4px 0 12px 0; color: #fff; }
+      .ue-today-actions { display: flex; gap: 8px; }
+      .ue-btn-today {
+        flex: 1; background: #27272a; color: #f4f4f5; border: 1px solid rgba(255,255,255,0.1); padding: 9px 12px; border-radius: 10px; font-size: 12px; font-weight: 600; cursor: pointer; text-align: center;
+      }
+      .ue-btn-today:active { transform: scale(0.98); }
+      .ue-btn-primary { background: #ea580c; border: none; color: #fff; }
 
-    const mealDisplay = currentMeal.trim() || 'Noch nichts eingetragen';
-    document.getElementById('ueTodayMeal').innerText = mealDisplay;
-    return mealDisplay;
-  }
+      /* Archiv-Leiste ganz unten vor der Tab-Navigation */
+      .ue-bottom-archive-bar {
+        display: flex; gap: 10px; justify-content: center; margin: 24px 14px 100px 14px; flex-wrap: wrap;
+      }
+      .ue-btn-bottom {
+        background: #27272a; color: #a1a1aa; border: 1px solid rgba(255,255,255,0.08); padding: 10px 16px; border-radius: 12px; font-size: 12px; font-weight: 600; cursor: pointer;
+      }
+      .ue-btn-reset-bottom { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
 
-  function openRecipeModal(isEditMode = false) {
-    const meal = updateTodayView();
-    if (!meal || meal === 'Noch nichts eingetragen') {
-      alert('Für heute ist noch kein Gericht im Plan hinterlegt!');
-      return;
+      /* Modals */
+      .ue-modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.75); z-index: 10000; align-items: center; justify-content: center; padding: 16px; backdrop-filter: blur(4px); }
+      .ue-modal-sheet { background: #18181b; color: #f4f4f5; border-radius: 20px; max-width: 440px; width: 100%; max-height: 85vh; overflow-y: auto; padding: 20px; border: 1px solid rgba(255,255,255,0.1); }
+      .ue-modal-sheet textarea { width: 100%; border: 1px solid #3f3f46; background: #09090b; color: #fff; border-radius: 10px; padding: 10px; font-size: 13px; box-sizing: border-box; min-height: 75px; margin-top: 4px; resize: vertical; }
+    `;
+    document.head.appendChild(style);
+
+    // 2. Heute-Banner (oben)
+    const banner = document.createElement('div');
+    banner.className = 'ue-today-card';
+    banner.innerHTML = `
+      <div class="ue-today-header">
+        <span class="ue-today-badge">Heute auf dem Teller</span>
+        <span id="ueTodayDate" style="font-size: 12px; opacity: 0.65;"></span>
+      </div>
+      <div class="ue-today-title" id="ueTodayMeal">Wird synchronisiert...</div>
+      <div class="ue-today-actions">
+        <button class="ue-btn-today ue-btn-primary" id="ueBtnViewRecipe">📖 Rezept & Zutaten</button>
+        <button class="ue-btn-today" id="ueBtnEditRecipe">✏️ Rezept bearbeiten</button>
+      </div>
+    `;
+
+    // Platzierung des Banners
+    const mainWrap = document.querySelector('main') || document.querySelector('.container') || document.body;
+    mainWrap.prepend(banner);
+
+    // 3. Archiv-Leiste (unten)
+    const bottomBar = document.createElement('div');
+    bottomBar.className = 'ue-bottom-archive-bar';
+    bottomBar.innerHTML = `
+      <button class="ue-btn-bottom" id="ueBtnArchive">📜 Verlauf / Archiv</button>
+      <button class="ue-btn-bottom ue-btn-reset-bottom" id="ueBtnReset">🔄 Woche archivieren & leeren</button>
+    `;
+
+    // Vor die Navigationsleiste hängen
+    const navElem = document.querySelector('nav') || document.querySelector('.bottom-nav') || document.querySelector('.tab-bar');
+    if (navElem && navElem.parentNode) {
+      navElem.parentNode.insertBefore(bottomBar, navElem);
+    } else {
+      document.body.appendChild(bottomBar);
     }
 
-    const recipes = getRecipes();
-    const recipe = recipes[meal] || { ingredients: '', instructions: '' };
+    // 4. Einheitliches Modal
+    const modalContainer = document.createElement('div');
+    modalContainer.className = 'ue-modal-backdrop';
+    modalContainer.id = 'ueGenericModal';
+    modalContainer.innerHTML = `
+      <div class="ue-modal-sheet">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; border-bottom:1px solid #27272a; padding-bottom:10px;">
+          <h3 id="ueModalTitle" style="margin:0; font-size:16px;">Details</h3>
+          <button id="ueModalClose" style="background:none; border:none; color:#a1a1aa; font-size:20px; cursor:pointer;">✕</button>
+        </div>
+        <div id="ueModalBody"></div>
+      </div>
+    `;
+    document.body.appendChild(modalContainer);
 
-    document.getElementById('ueModalDishTitle').innerText = meal;
-    document.getElementById('ueViewIngredients').innerText = recipe.ingredients || 'Keine Zutaten hinterlegt.';
-    document.getElementById('ueViewInstructions').innerText = recipe.instructions || 'Keine Schritte hinterlegt.';
+    // Helfer für Speicher
+    const getRecipes = () => JSON.parse(localStorage.getItem(STORAGE_KEY_RECIPES) || '{}');
+    const saveRecipes = (data) => localStorage.setItem(STORAGE_KEY_RECIPES, JSON.stringify(data));
+    const getArchive = () => JSON.parse(localStorage.getItem(STORAGE_KEY_ARCHIVE) || '[]');
+    const saveArchive = (data) => localStorage.setItem(STORAGE_KEY_ARCHIVE, JSON.stringify(data));
 
-    document.getElementById('ueInputIngredients').value = recipe.ingredients || '';
-    document.getElementById('ueInputInstructions').value = recipe.instructions || '';
+    // 5. Robuste Suche nach dem heutigen Gericht
+    function resolveTodayMeal() {
+      const todayName = weekDayNames[new Date().getDay()];
+      let foundMeal = '';
 
-    document.getElementById('ueViewMode').style.display = isEditMode ? 'none' : 'block';
-    document.getElementById('ueEditMode').style.display = isEditMode ? 'block' : 'none';
+      // A: DOM durchsuchen
+      const allElems = document.querySelectorAll('*');
+      for (const el of allElems) {
+        if (el.children.length === 0 && el.innerText && el.innerText.trim() === todayName) {
+          const parent = el.closest('[data-day], .day-card, .tag-karte, div');
+          if (parent) {
+            const input = parent.querySelector('input, select');
+            if (input && input.value) {
+              foundMeal = input.value;
+              break;
+            }
+            const dishElem = parent.querySelector('.dish-title, .meal-title, h3, h4, p');
+            if (dishElem && dishElem.innerText.trim() !== todayName) {
+              foundMeal = dishElem.innerText.trim();
+              break;
+            }
+          }
+        }
+      }
 
-    modal.style.display = 'flex';
-  }
+      // B: LocalStorage scannen (falls ntfy direkt in ein Wochenplan-Objekt speichert)
+      if (!foundMeal) {
+        for (let i = 0; i < localStorage.length; i++) {
+          const k = localStorage.key(i);
+          if (k.startsWith('ue_')) continue;
+          try {
+            const val = JSON.parse(localStorage.getItem(k));
+            if (val && typeof val === 'object') {
+              if (val[todayName]) foundMeal = val[todayName];
+              if (val.plan && val.plan[todayName]) foundMeal = val.plan[todayName];
+              if (Array.isArray(val)) {
+                const match = val.find(entry => entry.day === todayName || (entry.name && entry.name.includes(todayName)));
+                if (match) foundMeal = match.meal || match.dish || match.title;
+              }
+            }
+          } catch(e) {}
+          if (foundMeal) break;
+        }
+      }
 
-  // Event Listeners
-  document.getElementById('ueBtnViewRecipe').addEventListener('click', () => openRecipeModal(false));
-  document.getElementById('ueBtnEditRecipe').addEventListener('click', () => openRecipeModal(true));
-  document.getElementById('ueCloseRecipeModal').addEventListener('click', () => modal.style.display = 'none');
-  modal.addEventListener('click', (e) => { if (e.target === modal) modal.style.display = 'none'; });
+      return foundMeal ? foundMeal.trim() : 'Noch nichts eingetragen';
+    }
 
-  document.getElementById('ueBtnSaveRecipe').addEventListener('click', () => {
-    const meal = document.getElementById('ueModalDishTitle').innerText;
-    const recipes = getRecipes();
-    recipes[meal] = {
-      ingredients: document.getElementById('ueInputIngredients').value.trim(),
-      instructions: document.getElementById('ueInputInstructions').value.trim()
+    function syncDisplay() {
+      const now = new Date();
+      document.getElementById('ueTodayDate').innerText = `${weekDayNames[now.getDay()]}, ${now.toLocaleDateString('de-DE')}`;
+      const meal = resolveTodayMeal();
+      document.getElementById('ueTodayMeal').innerText = meal;
+    }
+
+    // Automatisch synchronisieren
+    syncDisplay();
+    setInterval(syncDisplay, 1500);
+
+    // 6. Modal Logik
+    const modal = document.getElementById('ueGenericModal');
+    const modalTitle = document.getElementById('ueModalTitle');
+    const modalBody = document.getElementById('ueModalBody');
+    document.getElementById('ueModalClose').onclick = () => modal.style.display = 'none';
+    modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+
+    // Rezept anzeigen
+    document.getElementById('ueBtnViewRecipe').onclick = () => {
+      const meal = document.getElementById('ueTodayMeal').innerText;
+      if (meal === 'Noch nichts eingetragen') return alert('Für heute ist noch kein Gericht im Plan eingetragen.');
+      const data = getRecipes()[meal] || { ingredients: '', instructions: '' };
+      modalTitle.innerText = meal;
+      modalBody.innerHTML = `
+        <div style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase; margin-bottom:4px;">🛒 Zutaten</div>
+        <div style="background:#27272a; padding:10px; border-radius:10px; font-size:13px; white-space:pre-wrap; margin-bottom:14px;">${data.ingredients || 'Keine Zutaten hinterlegt.'}</div>
+        <div style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase; margin-bottom:4px;">👩‍🍳 Zubereitung</div>
+        <div style="background:#27272a; padding:10px; border-radius:10px; font-size:13px; white-space:pre-wrap;">${data.instructions || 'Keine Zubereitung hinterlegt.'}</div>
+      `;
+      modal.style.display = 'flex';
     };
-    saveRecipes(recipes);
-    openRecipeModal(false); // Zurück zur Lese-Ansicht
-  });
 
-  // Init
-  setTimeout(updateTodayView, 250);
-})();
-</script>
+    // Rezept bearbeiten
+    document.getElementById('ueBtnEditRecipe').onclick = () => {
+      const meal = document.getElementById('ueTodayMeal').innerText;
+      if (meal === 'Noch nichts eingetragen') return alert('Trage erst ein Gericht ein, um Rezeptdaten zu pflegen.');
+      const recipes = getRecipes();
+      const data = recipes[meal] || { ingredients: '', instructions: '' };
+      modalTitle.innerText = `Rezept: ${meal}`;
+      modalBody.innerHTML = `
+        <label style="font-size:12px; color:#a1a1aa;">Zutaten (eine pro Zeile)</label>
+        <textarea id="ueEditIng">${data.ingredients || ''}</textarea>
+        <label style="font-size:12px; color:#a1a1aa; display:block; margin-top:10px;">Zubereitung / Notizen</label>
+        <textarea id="ueEditInst">${data.instructions || ''}</textarea>
+        <button class="ue-btn-today ue-btn-primary" id="ueSaveRecipeBtn" style="width:100%; margin-top:14px; padding:11px;">💾 Speichern</button>
+      `;
+      document.getElementById('ueSaveRecipeBtn').onclick = () => {
+        recipes[meal] = {
+          ingredients: document.getElementById('ueEditIng').value.trim(),
+          instructions: document.getElementById('ueEditInst').value.trim()
+        };
+        saveRecipes(recipes);
+        modal.style.display = 'none';
+      };
+      modal.style.display = 'flex';
+    };
+
+    // Verlauf anzeigen
+    document.getElementById('ueBtnArchive').onclick = () => {
+      const archive = getArchive();
+      modalTitle.innerText = '📜 Vergangene Wochen';
+      if (!archive.length) {
+        modalBody.innerHTML = '<p style="color:#71717a; text-align:center;">Noch keine archivierten Wochen vorhanden.</p>';
+      } else {
+        modalBody.innerHTML = archive.map(item => `
+          <div style="background:#27272a; border-radius:12px; padding:12px; margin-bottom:10px;">
+            <div style="font-weight:700; color:#ea580c; margin-bottom:6px;">${item.date}</div>
+            <div style="font-size:13px; line-height:1.6;">${item.summary || 'Woche ohne Details'}</div>
+          </div>
+        `).join('');
+      }
+      modal.style.display = 'flex';
+    };
+
+    // Reset durchführen
+    document.getElementById('ueBtnReset').onclick = () => {
+      if (!confirm('Woche abschließen und ins Archiv übertragen?')) return;
+      const archive = getArchive();
+      const kw = `KW ${new Date().toLocaleDateString('de-DE')}`;
+      archive.unshift({ date: kw, summary: 'Plan abgeschlossen' });
+      saveArchive(archive);
+      alert('Plan archiviert!');
+    };
+  })();
+  </script>
 </body>
 </html>
