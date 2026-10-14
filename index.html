@@ -1779,7 +1779,7 @@
     enhanceWochenplan();
   })();
   </script>
-  <!-- === MODULE: Heute-Rezept & Wochen-Archiv (Direkt-Selector) === -->
+<!-- === MODULE: Rezept an jedem Tag & Wochen-Archiv === -->
   <script>
   (() => {
     const KEY_RECIPES = 'unser_essen_recipes_v1';
@@ -1793,7 +1793,7 @@
         color: #ffffff !important;
         border: none !important;
         border-radius: 8px !important;
-        padding: 6px 12px !important;
+        padding: 5px 10px !important;
         font-size: 11px !important;
         font-weight: 700 !important;
         cursor: pointer !important;
@@ -1827,7 +1827,7 @@
     `;
     document.head.appendChild(style);
 
-    // 2. Modal-Fenster
+    // 2. Modal
     const modal = document.createElement('div');
     modal.className = 'ue-popup-bg';
     modal.id = 'ueModalRoot';
@@ -1850,37 +1850,37 @@
     const getArchive = () => JSON.parse(localStorage.getItem(KEY_ARCHIVE) || '[]');
     const saveArchive = (d) => localStorage.setItem(KEY_ARCHIVE, JSON.stringify(d));
 
-    // 3. Wochenplan finden und Elemente einhängen
+    // 3. An jedem Tag anhängen
     function attachAddons() {
-      // Finde alle Dropdown-Selects im Wochenplan
       const selects = document.querySelectorAll('select');
       
       selects.forEach(select => {
-        // Sucht den umgebenden Container des Tages
         const parent = select.closest('div');
         if (!parent) return;
 
-        // Prüfen, ob dieser Container "heute" oder den aktuellen Tag markiert
-        const isToday = parent.innerText.toLowerCase().includes('heute') || 
-                        parent.parentElement?.innerText.toLowerCase().includes('heute');
+        const val = select.options[select.selectedIndex]?.text || '';
+        const hasMeal = val && !val.includes('noch nichts');
 
-        if (isToday) {
-          if (!parent.querySelector('.ue-recipe-btn') && !parent.parentElement?.querySelector('.ue-recipe-btn')) {
-            const btn = document.createElement('button');
+        let btn = parent.querySelector('.ue-recipe-btn');
+
+        if (hasMeal) {
+          if (!btn) {
+            btn = document.createElement('button');
             btn.className = 'ue-recipe-btn';
             btn.innerText = '📖 Rezept & Zutaten';
             btn.onclick = (e) => {
               e.preventDefault();
               e.stopPropagation();
-              const val = select.options[select.selectedIndex]?.text || '';
-              if (!val || val.includes('noch nichts')) {
-                return alert('Bitte erst ein Gericht für heute auswählen!');
+              const currentVal = select.options[select.selectedIndex]?.text || '';
+              if (!currentVal || currentVal.includes('noch nichts')) {
+                return alert('Bitte erst ein Gericht auswählen!');
               }
-              openRecipeModal(val.trim());
+              openRecipeModal(currentVal.trim());
             };
-            // Direkt unter das Select oder an den Container hängen
             parent.appendChild(btn);
           }
+        } else if (btn) {
+          btn.remove();
         }
       });
 
@@ -1896,7 +1896,6 @@
             btn.onclick = openArchiveModal;
             el.insertAdjacentElement('afterend', btn);
 
-            // Auto-Archivieren bei Klick auf Plan leeren
             el.addEventListener('click', archiveWeek);
           }
         }
@@ -1910,10 +1909,10 @@
       document.getElementById('ueMTitle').innerText = mealName;
       document.getElementById('ueMContent').innerHTML = `
         <label style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase;">🛒 Zutaten</label>
-        <textarea id="ueEditIng" placeholder="z. B. Hähnchen, Römersalat, Parmesan...">${rec.ing || ''}</textarea>
+        <textarea id="ueEditIng" placeholder="z. B. Hähnchen, Salat, Dressing...">${rec.ing || ''}</textarea>
 
         <label style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase;">👩‍🍳 Zubereitung / Notizen</label>
-        <textarea id="ueEditInst" placeholder="z. B. Dressing anrühren, Salat waschen...">${rec.inst || ''}</textarea>
+        <textarea id="ueEditInst" placeholder="Zubereitungsschritte...">${rec.inst || ''}</textarea>
 
         <button id="ueSaveRecipe" style="width:100%; background:#ea580c; color:#fff; border:none; padding:10px; border-radius:10px; font-weight:700; cursor:pointer;">💾 Rezept speichern</button>
       `;
@@ -1952,7 +1951,7 @@
       const c = document.getElementById('ueMContent');
 
       if (!archive.length) {
-        c.innerHTML = '<p style="color:#71717a; text-align:center;">Noch keine archivierten Wochen vorhanden.</p>';
+        c.innerHTML = '<p style="color:#78716c; text-align:center;">Noch keine archivierten Wochen vorhanden.</p>';
       } else {
         c.innerHTML = archive.map(item => `
           <div style="background:#27272a; border-radius:10px; padding:10px; margin-bottom:10px; font-size:13px;">
@@ -1966,7 +1965,6 @@
       modal.style.display = 'flex';
     }
 
-    // Läuft kontinuierlich mit – klinkt sich sofort ein, sobald du auf den Wochenplan-Tab klickst
     setInterval(attachAddons, 400);
   })();
   </script>
