@@ -1779,5 +1779,196 @@
     enhanceWochenplan();
   })();
   </script>
+  <!-- === MODULE: Heute-Rezept & Wochen-Archiv (Direkt-Selector) === -->
+  <script>
+  (() => {
+    const KEY_RECIPES = 'unser_essen_recipes_v1';
+    const KEY_ARCHIVE = 'unser_essen_archive_v1';
+
+    // 1. Styling
+    const style = document.createElement('style');
+    style.textContent = `
+      .ue-recipe-btn {
+        background: #ea580c !important;
+        color: #ffffff !important;
+        border: none !important;
+        border-radius: 8px !important;
+        padding: 6px 12px !important;
+        font-size: 11px !important;
+        font-weight: 700 !important;
+        cursor: pointer !important;
+        display: inline-block !important;
+        margin-top: 6px !important;
+      }
+      .ue-archive-btn {
+        display: block;
+        margin: 15px auto 30px auto;
+        color: #a1a1aa;
+        background: none;
+        border: none;
+        font-size: 13px;
+        text-decoration: underline;
+        cursor: pointer;
+      }
+      .ue-popup-bg {
+        display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.85);
+        z-index: 100000; align-items: center; justify-content: center; padding: 16px;
+      }
+      .ue-popup-box {
+        background: #18181b; color: #f4f4f5; border-radius: 18px; max-width: 440px;
+        width: 100%; max-height: 85vh; overflow-y: auto; padding: 20px;
+        border: 1px solid rgba(255,255,255,0.12); font-family: inherit;
+      }
+      .ue-popup-box textarea {
+        width: 100%; border: 1px solid #3f3f46; background: #09090b; color: #fff;
+        border-radius: 10px; padding: 8px; font-size: 13px; box-sizing: border-box;
+        min-height: 70px; margin: 4px 0 12px 0; resize: vertical; font-family: inherit;
+      }
+    `;
+    document.head.appendChild(style);
+
+    // 2. Modal-Fenster
+    const modal = document.createElement('div');
+    modal.className = 'ue-popup-bg';
+    modal.id = 'ueModalRoot';
+    modal.innerHTML = `
+      <div class="ue-popup-box">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #27272a; padding-bottom:8px;">
+          <h3 id="ueMTitle" style="margin:0; font-size:16px;">Rezept</h3>
+          <button id="ueMClose" style="background:none; border:none; color:#a1a1aa; font-size:22px; cursor:pointer;">✕</button>
+        </div>
+        <div id="ueMContent"></div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+
+    document.getElementById('ueMClose').onclick = () => modal.style.display = 'none';
+    modal.onclick = (e) => { if (e.target === modal) modal.style.display = 'none'; };
+
+    const getRecipes = () => JSON.parse(localStorage.getItem(KEY_RECIPES) || '{}');
+    const saveRecipes = (d) => localStorage.setItem(KEY_RECIPES, JSON.stringify(d));
+    const getArchive = () => JSON.parse(localStorage.getItem(KEY_ARCHIVE) || '[]');
+    const saveArchive = (d) => localStorage.setItem(KEY_ARCHIVE, JSON.stringify(d));
+
+    // 3. Wochenplan finden und Elemente einhängen
+    function attachAddons() {
+      // Finde alle Dropdown-Selects im Wochenplan
+      const selects = document.querySelectorAll('select');
+      
+      selects.forEach(select => {
+        // Sucht den umgebenden Container des Tages
+        const parent = select.closest('div');
+        if (!parent) return;
+
+        // Prüfen, ob dieser Container "heute" oder den aktuellen Tag markiert
+        const isToday = parent.innerText.toLowerCase().includes('heute') || 
+                        parent.parentElement?.innerText.toLowerCase().includes('heute');
+
+        if (isToday) {
+          if (!parent.querySelector('.ue-recipe-btn') && !parent.parentElement?.querySelector('.ue-recipe-btn')) {
+            const btn = document.createElement('button');
+            btn.className = 'ue-recipe-btn';
+            btn.innerText = '📖 Rezept & Zutaten';
+            btn.onclick = (e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              const val = select.options[select.selectedIndex]?.text || '';
+              if (!val || val.includes('noch nichts')) {
+                return alert('Bitte erst ein Gericht für heute auswählen!');
+              }
+              openRecipeModal(val.trim());
+            };
+            // Direkt unter das Select oder an den Container hängen
+            parent.appendChild(btn);
+          }
+        }
+      });
+
+      // Archiv-Button unter "Plan leeren"
+      const allDivs = document.querySelectorAll('div, span, p, a, button');
+      allDivs.forEach(el => {
+        if (el.children.length === 0 && el.innerText.trim().toLowerCase() === 'plan leeren') {
+          if (!document.getElementById('ueArchiveBtn')) {
+            const btn = document.createElement('button');
+            btn.id = 'ueArchiveBtn';
+            btn.className = 'ue-archive-btn';
+            btn.innerText = '📜 Wochen-Archiv & Verlauf';
+            btn.onclick = openArchiveModal;
+            el.insertAdjacentElement('afterend', btn);
+
+            // Auto-Archivieren bei Klick auf Plan leeren
+            el.addEventListener('click', archiveWeek);
+          }
+        }
+      });
+    }
+
+    function openRecipeModal(mealName) {
+      const recipes = getRecipes();
+      const rec = recipes[mealName] || { ing: '', inst: '' };
+
+      document.getElementById('ueMTitle').innerText = mealName;
+      document.getElementById('ueMContent').innerHTML = `
+        <label style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase;">🛒 Zutaten</label>
+        <textarea id="ueEditIng" placeholder="z. B. Hähnchen, Römersalat, Parmesan...">${rec.ing || ''}</textarea>
+
+        <label style="font-size:12px; font-weight:700; color:#ea580c; text-transform:uppercase;">👩‍🍳 Zubereitung / Notizen</label>
+        <textarea id="ueEditInst" placeholder="z. B. Dressing anrühren, Salat waschen...">${rec.inst || ''}</textarea>
+
+        <button id="ueSaveRecipe" style="width:100%; background:#ea580c; color:#fff; border:none; padding:10px; border-radius:10px; font-weight:700; cursor:pointer;">💾 Rezept speichern</button>
+      `;
+
+      document.getElementById('ueSaveRecipe').onclick = () => {
+        recipes[mealName] = {
+          ing: document.getElementById('ueEditIng').value.trim(),
+          inst: document.getElementById('ueEditInst').value.trim()
+        };
+        saveRecipes(recipes);
+        alert('Rezept für "' + mealName + '" gespeichert!');
+        modal.style.display = 'none';
+      };
+
+      modal.style.display = 'flex';
+    }
+
+    function archiveWeek() {
+      const selects = document.querySelectorAll('select');
+      const meals = [];
+      selects.forEach(s => {
+        const txt = s.options[s.selectedIndex]?.text;
+        if (txt && !txt.includes('noch nichts')) meals.push(txt.trim());
+      });
+
+      if (meals.length > 0) {
+        const archive = getArchive();
+        archive.unshift({ date: new Date().toLocaleDateString('de-DE'), meals });
+        saveArchive(archive);
+      }
+    }
+
+    function openArchiveModal() {
+      const archive = getArchive();
+      document.getElementById('ueMTitle').innerText = '📜 Wochen-Archiv';
+      const c = document.getElementById('ueMContent');
+
+      if (!archive.length) {
+        c.innerHTML = '<p style="color:#71717a; text-align:center;">Noch keine archivierten Wochen vorhanden.</p>';
+      } else {
+        c.innerHTML = archive.map(item => `
+          <div style="background:#27272a; border-radius:10px; padding:10px; margin-bottom:10px; font-size:13px;">
+            <strong style="color:#ea580c;">Woche vom ${item.date}</strong>
+            <ul style="margin:6px 0 0 16px; padding:0;">
+              ${item.meals.map(m => `<li>${m}</li>`).join('')}
+            </ul>
+          </div>
+        `).join('');
+      }
+      modal.style.display = 'flex';
+    }
+
+    // Läuft kontinuierlich mit – klinkt sich sofort ein, sobald du auf den Wochenplan-Tab klickst
+    setInterval(attachAddons, 400);
+  })();
+  </script>
 </body>
 </html>
