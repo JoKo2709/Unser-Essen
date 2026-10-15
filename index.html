@@ -2212,5 +2212,171 @@
   startNtfyListener();
 })();
 </script>
+  <!-- ========================================== -->
+<!-- FEATURE: SMARTE EINKAUFSLISTE & RATINGS   -->
+<!-- ========================================== -->
+<style>
+  /* Styling für Kategorien in der Einkaufsliste */
+  .shopping-category-group {
+    margin-bottom: 1.25rem;
+    background: rgba(0, 0, 0, 0.02);
+    border-radius: 12px;
+    padding: 0.75rem;
+    border: 1px solid rgba(0, 0, 0, 0.06);
+  }
+  .shopping-category-title {
+    font-size: 0.85rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: #888;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .shopping-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    border-bottom: 1px dashed rgba(0, 0, 0, 0.05);
+  }
+  .shopping-item:last-child {
+    border-bottom: none;
+  }
+
+  /* Styling für Sterne-Rating */
+  .rating-stars {
+    display: inline-flex;
+    gap: 4px;
+    cursor: pointer;
+    font-size: 1.3rem;
+  }
+  .star {
+    color: #d1d5db;
+    transition: color 0.15s ease-in-out;
+  }
+  .star.active {
+    color: #f59e0b;
+  }
+  .recipe-notes-input {
+    width: 100%;
+    margin-top: 0.5rem;
+    padding: 0.5rem;
+    border-radius: 8px;
+    border: 1px solid #e5e7eb;
+    font-family: inherit;
+    font-size: 0.85rem;
+    box-sizing: border-box;
+  }
+</style>
+
+<script>
+// --- 1. SMARTE SUPERMARKT-KATEGORISIERUNG ---
+const SUPERMARKET_CATEGORIES = {
+  "Obst & Gemüse 🥦🍎": [
+    "apfel", "äpfel", "banane", "bananen", "salat", "tomate", "tomaten", 
+    "gurke", "gurken", "zwiebel", "zwiebeln", "knoblauch", "kartoffel", 
+    "kartoffeln", "paprika", "karotte", "karotten", "möhre", "möhren", 
+    "avocado", "limette", "zitrone", "kräuter", "petersilie", "schnittlauch"
+  ],
+  "Kühlregal & Milchprodukte 🧀🥛": [
+    "milch", "butter", "käse", "gouda", "mozzarella", "parmesan", "quark", 
+    "magerquark", "sahne", "schmand", "creme fraiche", "joghurt", "eier", 
+    "frischkäse", "feta"
+  ],
+  "Fleisch & Wurst 🥩🍗": [
+    "hähnchen", "hähnchenbrust", "hackfleisch", "rinderhack", "rindfleisch", 
+    "schwein", "speck", "bacon", "schinken", "salami", "würstchen", "lachs", "garnelen"
+  ],
+  "Vorrat, Nudeln & Reis 🍝🌾": [
+    "reis", "basmati", "nudeln", "spaghetti", "penne", "mehl", "zucker", 
+    "passierte tomaten", "gehackte tomaten", "kokosmilch", "kidneybohnen", 
+    "mais", "haferflocken", "olivenöl", "öl", "sojasauce", "essig"
+  ],
+  "Brot & Backwaren 🥖": [
+    "brot", "brötchen", "toast", "baguette", "tortilla", "wraps", "hefe"
+  ],
+  "Gewürze & Backzutaten 🧂": [
+    "salz", "pfeffer", "paprikapulver", "oregano", "basilikum", "curry", 
+    "zimt", "backpulver", "vanillezucker"
+  ]
+};
+
+// Erkennt die passende Kategorie für ein Lebensmittel
+function categorizeIngredient(ingredientName) {
+  const cleanName = ingredientName.toLowerCase().trim();
+  for (const [category, keywords] of Object.entries(SUPERMARKET_CATEGORIES)) {
+    if (keywords.some(kw => cleanName.includes(kw))) {
+      return category;
+    }
+  }
+  return "Sonstiges 🛒";
+}
+
+// Gruppiert ein Array von Zutaten in ein Objekt nach Kategorien
+function groupIngredientsByCategory(ingredientList) {
+  return ingredientList.reduce((acc, item) => {
+    const category = categorizeIngredient(item.name || item);
+    if (!acc[category]) acc[category] = [];
+    acc[category].push(item);
+    return acc;
+  }, {});
+}
+
+
+// --- 2. REZEPT-RATINGS & NOTIZEN SYSTEM ---
+const FoodAppFeedback = {
+  // Lädt die Bewertung & Notiz für ein bestimmtes Gericht
+  getData: function(mealId) {
+    const saved = localStorage.getItem(`recipe_feedback_${mealId}`);
+    return saved ? JSON.parse(saved) : { rating: 0, note: "" };
+  },
+
+  // Speichert Bewertung und/oder Notiz
+  saveData: function(mealId, rating, note) {
+    const current = this.getData(mealId);
+    const updated = {
+      rating: rating !== undefined ? rating : current.rating,
+      note: note !== undefined ? note : current.note
+    };
+    localStorage.setItem(`recipe_feedback_${mealId}`, JSON.stringify(updated));
+    return updated;
+  },
+
+  // Erstellt das HTML-Element für die 5 Sterne
+  renderStarRating: function(mealId, currentRating = 0, onRateCallback) {
+    const container = document.createElement("div");
+    container.className = "rating-stars";
+    container.dataset.mealId = mealId;
+
+    for (let i = 1; i <= 5; i++) {
+      const star = document.createElement("span");
+      star.className = `star ${i <= currentRating ? "active" : ""}`;
+      star.innerHTML = "★";
+      star.onclick = () => {
+        this.saveData(mealId, i, undefined);
+        this.updateStarVisuals(container, i);
+        if (typeof onRateCallback === "function") onRateCallback(i);
+      };
+      container.appendChild(star);
+    }
+    return container;
+  },
+
+  // Aktualisiert die gelben Sterne bei Klick
+  updateStarVisuals: function(container, rating) {
+    const stars = container.querySelectorAll(".star");
+    stars.forEach((star, idx) => {
+      if (idx < rating) {
+        star.classList.add("active");
+      } else {
+        star.classList.remove("active");
+      }
+    });
+  }
+};
+</script>
 </body>
 </html>
